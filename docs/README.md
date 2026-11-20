@@ -10,14 +10,15 @@
 5. [تصمیم مهاجرت UI](04_UI_MIGRATION_DECISION.md)
 6. [استاندارد UX/UI](05_UI_UX_STANDARDS.md)
 7. [زیرساخت هاست اشتراکی](06_PLATFORM_AND_SHARED_HOSTING.md)
-8. [نقشه راه](07_MIGRATION_AND_DELIVERY_ROADMAP.md)
+8. [نقشه راه انتقال](07_MIGRATION_AND_DELIVERY_ROADMAP.md)
 9. [وضعیت پروژه](08_PROJECT_STATUS.md)
-10. [دستورالعمل Project ChatGPT](CHATGPT_PROJECT_INSTRUCTIONS.md)
+10. [فهرست شواهد کد قدیمی](09_LEGACY_CODE_INVENTORY.md)
+11. [دستورالعمل Project ChatGPT](CHATGPT_PROJECT_INSTRUCTIONS.md)
 
 ## ساختار
-- `docs/`: اسناد جاری.
-- `docs/modules/`: اسناد ماژول‌ها که پس از ممیزی کد و تست‌های قدیمی بازنگری می‌شوند.
-- `docs/reference/legacy-hamarehCRM/`: نسخه مرجع اسناد قبلی؛ تاریخی و غیرقابل استناد به‌عنوان وضعیت اجرایی پروژه جدید بدون بازبینی.
+- اسناد جاری و تصمیم‌های معتبر در همین سطح نگهداری می‌شوند.
+- `docs/modules/`: اسناد ماژول‌ها پس از ممیزی و بازنویسی قرار می‌گیرند.
+- `docs/reference/legacy-hamarehCRM/`: ۳۸ سند قدیمی، عیناً و با همان محتوای Git Blob، به‌عنوان مرجع تاریخی نگهداری شده‌اند.
 - `project/`: برنامه‌ها و مصنوعات اجرایی.
 
-وجود قابلیت در سند قدیمی، اثبات پیاده‌سازی یا تست آن در پروژه جدید نیست.
+اسناد قدیمی برای حفظ دانش منتقل شده‌اند؛ ارجاع‌های Filamentمحور آن‌ها دستور اجرای پروژه جدید نیستند. وجود قابلیت در سند یا کد قدیمی، اثبات پیاده‌سازی یا تست آن در پروژه جدید نیست.
