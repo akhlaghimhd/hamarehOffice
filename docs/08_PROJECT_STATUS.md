@@ -48,13 +48,14 @@
 - M12 Sales Network & Commission: سند `modules/M12_SALES_NETWORK_COMMISSION.md` ایجاد شد؛ SalesRepresentative، Migration، Seeder مجوز، Resource، اتصال Opportunity/Quote/Order، Snapshot سفارش و تست منتخب بررسی شدند. اسکلت نماینده داخلی/بیرونی و Snapshot تک‌نماینده وجود دارد؛ اما اتصال نماینده بیرونی به Party، قرارداد نسخه‌دار، چند User محدود، انتساب چندذی‌نفع، CommissionPlan/Entry/Adjustment/Settlement و دسترسی بیرونی در کد منتخب وجود ندارد. نرخ و مبنای استحقاق عمداً تصمیم‌گیری‌نشده باقی مانده‌اند و بدون تأیید مالک فعال نمی‌شوند. تست اجرا نشده است.
 
 ## کارهای باز
-1. بازنگری M03 تا M12 و تکمیل ماتریس «نیازمندی/کد/مجوز/تست/شکاف».
-2. تکمیل ممیزی M00 تا M02 شامل Migrationها، Seederها، Middlewareها، Routeها، Policyها، Jobها و یکپارچگی DB.
-3. اجرای تست‌های منبع در محیط قابل تکرار؛ تاکنون در این بازنگری اجرا نشده‌اند.
+1. تکمیل ممیزی عمیق M00 تا M02 شامل Migrationها، Seederها، Middlewareها، Routeها، Policyها، Jobها و یکپارچگی DB؛ اسناد فعلی این سه ماژول بررسی منتخب‌اند.
+2. ممیزی اتصال بین‌ماژولی M00 تا M12: Company Context/Identity، Party، Catalog Revision، Quote/Order Snapshot، Workflow/Production، Inventory Ledger، Invoice/Payment و Commission.
+3. تکمیل ماتریس سراسری «نیازمندی/تصمیم/کد قدیمی/مجوز/تست/شکاف/قرارداد جدید» و ثبت تصمیم‌های نیازمند مالک.
 4. بررسی prototype Vue به‌عنوان مرجع آزمایشی، نه مبنای معماری قطعی.
-5. بررسی محدودیت‌های واقعی هاست و spike انتخاب Inertia یا Blade + Vue/API.
-6. پس از تکمیل اسناد و تثبیت معماری، بررسی محیط و نصب محلی.
+5. دریافت مشخصات واقعی هاست اشتراکی و اجرای spike محدود انتخاب Inertia یا Blade + Vue/API با معیارهای auth/session، build، deploy، cron/queue و rollback.
+6. تعیین نسخه دقیق PHP/Laravel/MariaDB/Node بر اساس محیط محلی و هاست مقصد.
+7. پس از تکمیل ممیزی و تثبیت معماری، نصب محلی و vertical slice؛ تا آن زمان scaffold انجام نشود.
 
-**ممنوعیت مرحله جاری:** نصب Laravel، scaffold و نصب پکیج‌ها تا پایان بازنگری اسناد و ممیزی دانش شروع نشود.
+ممنوعیت مرحله جاری:** نصب Laravel، scaffold و نصب پکیج‌ها تا پایان بازنگری اسناد و ممیزی دانش شروع نشود.
 
 «مستند» به معنی پیاده‌سازی نیست. «پیاده‌سازی قدیمی» به معنی انتقال به جدید نیست. «تست موجود» به معنی اجرای موفق فعلی نیست.
