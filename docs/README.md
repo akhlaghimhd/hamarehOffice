@@ -15,6 +15,7 @@
 10. [فهرست شواهد کد قدیمی](09_LEGACY_CODE_INVENTORY.md)
 11. [دستورالعمل Project ChatGPT](CHATGPT_PROJECT_INSTRUCTIONS.md)
 12. [ممیزی اتصال بین‌ماژولی و معماری اجرایی](10_CROSS_MODULE_ARCHITECTURE_REVIEW.md)
+13. [Spike رابط Vue و هاست اشتراکی](11_UI_AND_HOSTING_SPIKE.md)
 
 ## ساختار
 - اسناد جاری و تصمیم‌های معتبر در همین سطح نگهداری می‌شوند.
