@@ -3,8 +3,8 @@
 این اسناد نسخه بازنگری‌شده قراردادهای دامنه‌اند. برای هر ماژول، نیازمندی، شواهد مخزن قدیمی، وضعیت تست، قرارداد پروژه جدید، سناریوهای پذیرش و کارهای باز جدا ثبت می‌شود.
 
 ## وضعیت
-- [M00 — Foundation](M00_FOUNDATION.md): بازنگری اولیه انجام شده؛ تست‌ها در این مرحله اجرا نشده‌اند.
-- [M01 — Identity & Access](M01_IDENTITY_ACCESS.md): نیازمندی، شواهد منتخب کد و تست‌ها بررسی شد؛ ممیزی کامل و اجرای تست‌ها باقی است.
+- [M00 — Foundation](M00_FOUNDATION.md): CompanyContext، Scope، Job، NumberSequence، Attachment، AuditObserver، Migrationها و تست‌های منتخب ممیزی عمیق‌تر شدند؛ تست‌ها اجرا نشده‌اند.
+- [M01 — Identity & Access](M01_IDENTITY_ACCESS.md): مدل نقش و Permission، pivot دوگانه، Migration، CompanyContext، Actionها و تست‌های منتخب عمیق‌تر بررسی شدند؛ تصمیم admin wildcard و تکمیل ممیزی Route/API/Policy و اجرای تست‌ها باقی است.
 - [M02 — Organization & Company](M02_ORGANIZATION_COMPANY.md): نیازمندی و تصمیم‌های تاریخی، مدل‌ها، Actionها، تنظیمات، هویت مالی، Migrationها و تست‌های منتخب بررسی شد؛ ممیزی کامل و اجرای مستقل تست‌ها باقی است.
 - [M03 — Party & Customer](M03_PARTY_CUSTOMER.md): سند بازنگری ایجاد شد؛ نیازمندی تاریخی، مدل‌ها، Migrationها، Resource و تست ایزوله‌سازی منتخب بررسی شدند؛ تست‌ها اجرا نشده‌اند و مدل مشترک Party در کد قدیمی مشاهده نشد.
 - [M04 — Marketing & CRM](M04_MARKETING_CRM.md): سند بازنگری ایجاد شد؛ Opportunity، Activity، Stage، Step، ثبت سریع، Policy، میزکار، قیف، Migration منتخب و تست ایزوله‌سازی بررسی شدند؛ تست‌ها اجرا نشده‌اند و Transition کامل/بهینه‌سازی قیف نیازمند کار است.
