@@ -31,16 +31,25 @@ const submit = () => {
 
 <template>
     <GuestLayout>
-        <Head title="Log in" />
+        <Head title="ورود" />
 
-        <div v-if="status" class="mb-4 text-sm font-medium text-green-600">
+        <div class="mb-6">
+            <h1 class="text-xl font-semibold text-foreground">ورود به حساب</h1>
+            <p class="mt-1 text-sm text-muted-foreground">
+                ایمیل و رمز عبور خود را وارد کنید
+            </p>
+        </div>
+
+        <div
+            v-if="status"
+            class="mb-4 text-sm font-medium text-emerald-600"
+        >
             {{ status }}
         </div>
 
-        <form @submit.prevent="submit">
+        <form @submit.prevent="submit" class="space-y-4">
             <div>
-                <InputLabel for="email" value="Email" />
-
+                <InputLabel for="email" value="ایمیل" />
                 <TextInput
                     id="email"
                     type="email"
@@ -50,13 +59,11 @@ const submit = () => {
                     autofocus
                     autocomplete="username"
                 />
-
                 <InputError class="mt-2" :message="form.errors.email" />
             </div>
 
-            <div class="mt-4">
-                <InputLabel for="password" value="Password" />
-
+            <div>
+                <InputLabel for="password" value="رمز عبور" />
                 <TextInput
                     id="password"
                     type="password"
@@ -65,34 +72,32 @@ const submit = () => {
                     required
                     autocomplete="current-password"
                 />
-
                 <InputError class="mt-2" :message="form.errors.password" />
             </div>
 
-            <div class="mt-4 block">
-                <label class="flex items-center">
-                    <Checkbox name="remember" v-model:checked="form.remember" />
-                    <span class="ms-2 text-sm text-gray-600"
-                        >Remember me</span
-                    >
-                </label>
+            <div class="flex items-center gap-2">
+                <Checkbox
+                    name="remember"
+                    v-model:checked="form.remember"
+                />
+                <span class="text-sm text-muted-foreground">مرا به خاطر بسپار</span>
             </div>
 
-            <div class="mt-4 flex items-center justify-end">
+            <div class="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <Link
                     v-if="canResetPassword"
                     :href="route('password.request')"
-                    class="rounded-md text-sm text-gray-600 underline hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                    class="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
                 >
-                    Forgot your password?
+                    رمز عبور را فراموش کرده‌اید؟
                 </Link>
 
                 <PrimaryButton
-                    class="ms-4"
+                    class="w-full sm:w-auto"
                     :class="{ 'opacity-25': form.processing }"
                     :disabled="form.processing"
                 >
-                    Log in
+                    ورود
                 </PrimaryButton>
             </div>
         </form>
