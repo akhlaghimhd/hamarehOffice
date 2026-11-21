@@ -14,10 +14,11 @@
 9. [وضعیت پروژه](08_PROJECT_STATUS.md)
 10. [فهرست شواهد کد قدیمی](09_LEGACY_CODE_INVENTORY.md)
 11. [دستورالعمل Project ChatGPT](CHATGPT_PROJECT_INSTRUCTIONS.md)
+12. [ممیزی اتصال بین‌ماژولی و معماری اجرایی](10_CROSS_MODULE_ARCHITECTURE_REVIEW.md)
 
 ## ساختار
 - اسناد جاری و تصمیم‌های معتبر در همین سطح نگهداری می‌شوند.
-- [`docs/modules/`](modules/README.md): فهرست و اسناد بازنگری ماژول‌ها؛ M00 آغاز شده است.
+- [`docs/modules/`](modules/README.md): فهرست و اسناد بازنگری ماژول‌ها؛ M00 تا M12 دارای اسناد بازنگری‌اند؛ عمق بررسی و وضعیت تست هر ماژول در سند خودش مشخص شده است.
 - `docs/reference/legacy-hamarehCRM/`: ۳۸ سند قدیمی، عیناً و با همان محتوای Git Blob، به‌عنوان مرجع تاریخی نگهداری شده‌اند.
 - `project/`: برنامه‌ها و مصنوعات اجرایی.
 
