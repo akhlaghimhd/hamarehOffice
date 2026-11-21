@@ -73,6 +73,33 @@
 6. سند تاریخی M02 در چند روز تغییرات متوالی دارد و بعضی تصمیم‌ها با هم جایگزین شده‌اند (Drawer در برابر صفحه داشبورد مستقل؛ اجباری بودن مدیر اولیه هنگام ایجاد در برابر تعیین مدیر پس از ایجاد). برای این سند، تصمیم‌های متأخرتر بخش «داشبورد یکپارچه مدیریت شرکت» و «تصمیم تکمیلی مالک» مبنای رفتار جاری تاریخی در نظر گرفته شده‌اند؛ تأیید نهایی مالک پروژه جدید همچنان لازم است.
 7. شمارش تست‌ها یا گزارش CI قدیمی اثبات کیفیت نسخه جدید نیست و اجرای مستقل روی مخزن قدیمی در این بازنگری انجام نشده است.
 
+## ممیزی تکمیلی مدل و تراکنش‌های شرکت
+
+### Company Settings و Theme
+- Migration تنظیمات unique(company_id, key) و index(company_id, type) دارد؛ BelongsToCompany نیز write را به Company Context جاری محدود می‌کند.
+- مقدار در قالب JSON و با typeهای string/integer/boolean/decimal/json ذخیره می‌شود؛ validation rules برای مقدار اعمال می‌شوند.
+- تنظیم حساس با Crypt::encryptString رمزگذاری و در Audit به شکل [REDACTED] ثبت می‌شود؛ خواندن مقدار حساس فقط برای admin شرکت مجاز است.
+- کلید `ui.theme` از set/forget عمومی محافظت و از CompanyTheme عبور داده می‌شود؛ رنگ‌ها با HEX شش‌رقمی allowlist و density محدود می‌شوند.
+- `CompanySettings::assertCanManage()` فقط `isCompanyAdmin()` را می‌پذیرد؛ در حالی که UpdateCompanyProfile امکان مدیریت برخی مشخصات شرکت را به دارنده companies.manage نیز می‌دهد. این تفاوت باید به‌عنوان دو سطح مجوز آگاهانه مستند شود یا یکپارچه گردد.
+- در Console، CompanySettings همچنان به CompanyContext نیاز دارد؛ Job/Command باید زمینه صریح و actor سیستمی داشته باشد.
+
+### Financial Identity و Bank Account
+- هویت مالی در Migration با unique(company_id, type) و نسخه‌ها با unique(identity_id, version) ساخته می‌شود؛ Action هنگام تغییر، ردیف Company را lock و نسخه جدید Snapshot را ثبت می‌کند.
+- SaveCompanyBankAccount ابتدا هویت را lock می‌کند، حساب‌های پیش‌فرض خواهر را lock و unset می‌کند، سپس نسخه حساب و Audit را ثبت می‌کند؛ این طراحی تراکنشی برای رقابت از مسیر Action مفید است.
+- هیچ unique constraint در DB برای یک حساب فعال پیش‌فرض در هر هویت در Migration بررسی‌شده وجود ندارد؛ تضمین فعلی به استفاده از Action و قفل ردیف هویت وابسته است و تست concurrency مشاهده نشد.
+- FKهای company_bank_accounts.company_id و company_financial_identity_id جدا هستند؛ DB تضمین نمی‌کند هویت مالی متعلق به همان company_id باشد. همین مسئله برای جدول Versionها نیز وجود دارد.
+- CompanyFinancialIdentity و CompanyBankAccount در مدل منتخب از BelongsToCompany استفاده نمی‌کنند؛ عملیات منتخب company_id را در Queryها صریح فیلتر می‌کند، اما هر Query/Resource/API جدید باید همین کار را انجام دهد.
+- شماره حساب، شبا و کارت در مدل و Snapshotهای JSON به‌صورت متن خام ذخیره می‌شوند؛ در Action رمزگذاری at-rest یا masking ثبت‌شده مشاهده نشد. نسخه‌سازی به‌تنهایی محرمانگی ایجاد نمی‌کند.
+- Snapshot نسخه‌های حساب شامل account_number، iban و card_number است؛ سیاست دسترسی، encryption، masking در UI/Export و مدیریت کلید باید قبل از استفاده عملیاتی تعیین شود.
+- هنگام ایجاد شرکت، دو هویت رسمی/غیررسمی و نسخه اولیه هرکدام در تراکنش ساخته می‌شوند؛ ایجاد مدیر اولیه و عضویت نیز در همان جریان قرار دارد.
+
+### Company Lifecycle و ارتباط‌ها
+- Company موجودیت مرکزی است اما خودش BelongsToCompany نیست؛ این طبیعی است چون Company ریشه مرز داده است. تمام مسیرهای مدیریت آن باید PlatformOwner یا مجوز همان شرکت را کنترل کنند.
+- Company مدل قدیمی relation مستقیم customers() دارد؛ در معماری جدید باید با Party و نقش‌های تجاری M03 جایگزین شود.
+- UpdateCompanyProfile و SaveCompanyFinancialIdentity مجوز را پیش و در تراکنش دوباره بررسی می‌کنند؛ SaveCompanyBankAccount نیز همین الگو را برای هویت/شرکت تکرار می‌کند.
+- نسخه‌های هویت و حساب، actor و snapshot دارند؛ AuditEvent جداگانه نیز ثبت می‌شود. در تغییر حساب پیش‌فرض خواهر، نسخه جدید و Audit ثبت می‌شود.
+- تست‌های خوانده‌شده CompanySettingsTest، CompanyThemeTest، UpdateCompanyProfileTest و CompanyFinancialIdentityTest هستند؛ تست‌ها در این بازنگری اجرا نشده‌اند. هم‌زمانی default bank account، FK cross-company، encryption/masking داده بانکی و API مستقل از Filament در تست منتخب اثبات نشده‌اند.
+
 ## قرارداد انتقال به hamarehOffice
 - Company موجودیت مرزی اصلی است؛ تمام رکوردهای عملیاتی و تنظیمات شرکت با `company_id` مرتبط می‌شوند. استفاده از `tenant_id` ممنوع است.
 - ایجاد شرکت، مدیریت مدیر، پروفایل، وضعیت و بازیابی فقط از Actionهای دامنه و با مجوز مشخص انجام شود؛ Controller/API/UI نباید مستقیم چرخه عمر را دور بزند.
