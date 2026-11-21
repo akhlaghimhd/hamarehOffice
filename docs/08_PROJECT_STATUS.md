@@ -29,10 +29,10 @@
 درخت Git مخزن قدیمی در Commit فوق شامل ۶۳ فایل Migration، ۵۰ فایل Model، ۲۴ فایل Action، ۳ فایل Service، ۳ فایل Policy، ۴۷ فایل تست و ۱۴۷ فایل در مسیر Filament Resources/Pages/Relations است. این اعداد شمارش فایل‌اند، نه شمارش قابلیت فعال یا نتیجه تست. جزئیات و محدودیت‌ها در `09_LEGACY_CODE_INVENTORY.md` آمده است.
 
 ## بازنگری ماژول‌ها
-- M00 Foundation: سند `modules/M00_FOUNDATION.md` ایجاد شد؛ شواهد منتخب Company Scope، Attachment، Audit و تست‌های Sequence/Job/Attachment بررسی شده‌اند؛ تست‌ها اجرا نشده‌اند.
-- M01 Identity & Access: سند `modules/M01_IDENTITY_ACCESS.md` ایجاد شد؛ مدل‌های User/Role/Permission، CompanyContext، Actionهای کلیدی عضویت/نقش/ایجاد شرکت و تست‌های منتخب بررسی شدند.
+- M00 Foundation: سند `modules/M00_FOUNDATION.md` تکمیل شد؛ CompanyContext، BelongsToCompany، CompanyAwareJob، NumberSequence، Attachment، AuditObserver، Migrationها و تست‌های منتخب بررسی شدند. نکات جدید: Console هنوز امکان fallback به Session دارد؛ AuditObserver فقط پنج مدل را پوشش می‌دهد؛ purge فایل و concurrency واقعی Sequence نیازمند تکمیل‌اند. تست‌ها اجرا نشده‌اند.
+- M01 Identity & Access: سند `modules/M01_IDENTITY_ACCESS.md` عمیق‌تر شد؛ User/Role/Permission، CompanyContext، CompanyMembershipAccess، Migration pivotها، Actionهای عضویت/نقش و تست‌های منتخب بررسی شدند. dual-write/fallback نقش legacy و جدید، admin wildcard، طبقه‌بندی چندمنبعی Permissionهای مرکزی و نبود FK مرکب role/membership ثبت شدند.
 - M01 شکاف‌های طراحی شامل اتصال مستقیم User به Filament، دوگانگی pivot نقش legacy و جدید، رفتار دسترسی فراگیر نقش admin و نیاز به قرارداد یکپارچه مجوز و زمینه شرکت را ثبت کرده است.
-- M02 Organization & Company: سند `modules/M02_ORGANIZATION_COMPANY.md` ایجاد شد؛ Company، تنظیمات نوع‌دار و پوسته، هویت مالی رسمی/غیررسمی، حساب‌های دریافت، Actionها، Migrationها و تست‌های منتخب بررسی شدند.
+- M02 Organization & Company: سند `modules/M02_ORGANIZATION_COMPANY.md` عمیق‌تر شد؛ Settings/Theme، نسخه هویت مالی و حساب، Actionها و Migrationها بررسی شدند. شماره حساب/شبا/کارت و Snapshotها در کد منتخب plaintext هستند؛ FK مرکب شرکت/هویت و unique DB حساب پیش‌فرض وجود ندارد؛ مجوز تنظیمات فقط admin است.
 - M02 تصمیم‌های متأخر تاریخی درباره داشبورد مستقل شرکت و تعیین مدیر پس از ایجاد را از تصمیم‌های قدیمی‌تر Drawer/ایجاد اجباری مدیر اولیه تفکیک کرده است.
 - M02 ریسک‌های یکپارچگی DB برای تطابق شرکت و هویت مالی حساب بانکی، یکتایی حساب پیش‌فرض فعال، و سیاست رمزگذاری/ماسک داده بانکی را ثبت کرده است.
 - گزارش CI تاریخی در سند منبع M02 وجود دارد؛ تست‌ها در این بازنگری اجرا نشده‌اند و آن گزارش معادل تست پروژه جدید نیست.
