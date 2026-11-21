@@ -17,7 +17,7 @@
 - Inertia یا Blade + Vue/API هنوز باز است و باید با spike محدود تعیین شود.
 - Identity واحد و جداسازی با `company_id` الزامی است.
 - UI فارسی RTL، اعداد فارسی و تاریخ شمسی.
-- مرحله فعلی: انتقال اسناد، بازنگری دانش و ممیزی پیاده‌سازی قدیمی.
+- مرحله فعلی: بازنگری اولیه M00 تا M12 انجام شده؛ ممیزی اتصال بین‌ماژولی و تکمیل عمیق M00 تا M02 در جریان است؛ سپس spike معماری UI/هاست.
 
 ## انتقال اسناد
 - ۳۸ فایل Markdown از `hamarehCRM/اسناد/` در Commit `25ba93d0408b4b641e7fb52989e89557381cbaed` به `docs/reference/legacy-hamarehCRM/` منتقل شده‌اند.
@@ -46,6 +46,7 @@
 - M10 Inventory Light: سند `modules/M10_INVENTORY.md` ایجاد شد؛ StockLevel/StockMovement، عملیات ورود/رزرو/آزادسازی/انتقال/مصرف/آماده/تحویل/اصلاح، OrderInventoryService، Migration، Resource و تست‌های منتخب بررسی شدند. قفل تراکنشی ردیف مانده و رزرو جلد/تحویل جزئی شواهد دارند؛ اما چند منبع موجودی برای جلد، نبود Projection قابل rebuild، نبود اتصال رزرو به انتقال تولید، پوشش ناقص داخله/ضایعات و idempotency/concurrency از شکاف‌ها هستند. تست‌ها اجرا نشده‌اند.
 - M11 Reporting & Notifications: سند `modules/M11_REPORTING_NOTIFICATIONS.md` ایجاد شد؛ KPI Widgetها، FollowUpNeeded، Command اعلان سررسید، Scheduler، Migration notifications و تست منتخب بررسی شدند. KPI پایه و اعلان ساعتی Task/Activity شواهد دارند؛ اما dedupe فقط Cacheمحور است، ترجیحات کانال/Escalation/Export کامل نیست، URLها Filament-specific هستند و تست Activity/dedupe/company/timezone محدود است. تست اجرا نشده است.
 - M12 Sales Network & Commission: سند `modules/M12_SALES_NETWORK_COMMISSION.md` ایجاد شد؛ SalesRepresentative، Migration، Seeder مجوز، Resource، اتصال Opportunity/Quote/Order، Snapshot سفارش و تست منتخب بررسی شدند. اسکلت نماینده داخلی/بیرونی و Snapshot تک‌نماینده وجود دارد؛ اما اتصال نماینده بیرونی به Party، قرارداد نسخه‌دار، چند User محدود، انتساب چندذی‌نفع، CommissionPlan/Entry/Adjustment/Settlement و دسترسی بیرونی در کد منتخب وجود ندارد. نرخ و مبنای استحقاق عمداً تصمیم‌گیری‌نشده باقی مانده‌اند و بدون تأیید مالک فعال نمی‌شوند. تست اجرا نشده است.
+- ممیزی اتصال بین‌ماژولی: سند `10_CROSS_MODULE_ARCHITECTURE_REVIEW.md` ایجاد شد؛ قراردادهای مشترک Company Context/Identity، Party، Catalog-to-Order Snapshot، Workflow/Production، Inventory Ledger، Finance، Commission و Notification و شکاف‌های سراسری اولویت‌بندی شدند. این سند طراحی نهایی دیتابیس یا مجوز شروع پیاده‌سازی نیست.
 
 ## کارهای باز
 1. تکمیل ممیزی عمیق M00 تا M02 شامل Migrationها، Seederها، Middlewareها، Routeها، Policyها، Jobها و یکپارچگی DB؛ اسناد فعلی این سه ماژول بررسی منتخب‌اند.
