@@ -1,15 +1,19 @@
 <script setup>
 import { onMounted, ref } from 'vue';
 
-const model = defineModel({
-    type: String,
-    required: true,
+defineProps({
+    modelValue: {
+        type: [String, Number],
+        default: '',
+    },
 });
+
+defineEmits(['update:modelValue']);
 
 const input = ref(null);
 
 onMounted(() => {
-    if (input.value.hasAttribute('autofocus')) {
+    if (input.value?.hasAttribute('autofocus')) {
         input.value.focus();
     }
 });
@@ -19,8 +23,9 @@ defineExpose({ focus: () => input.value.focus() });
 
 <template>
     <input
-        class="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-        v-model="model"
+        class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+        :value="modelValue"
+        @input="$emit('update:modelValue', $event.target.value)"
         ref="input"
     />
 </template>

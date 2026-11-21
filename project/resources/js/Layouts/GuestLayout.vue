@@ -1,20 +1,25 @@
 <script setup>
-import ApplicationLogo from '@/Components/ApplicationLogo.vue';
 import { Link } from '@inertiajs/vue3';
 </script>
 
 <template>
     <div
-        class="flex min-h-screen flex-col items-center bg-gray-100 pt-6 sm:justify-center sm:pt-0"
+        class="flex min-h-screen flex-col items-center justify-center bg-muted/40 px-4 py-10"
     >
-        <div>
-            <Link href="/">
-                <ApplicationLogo class="h-20 w-20 fill-current text-gray-500" />
+        <div class="mb-8 text-center">
+            <Link
+                href="/"
+                class="text-2xl font-bold tracking-tight text-foreground"
+            >
+                هم‌ره
             </Link>
+            <p class="mt-1 text-sm text-muted-foreground">
+                سامانه عملیاتی چندشرکتی
+            </p>
         </div>
 
         <div
-            class="mt-6 w-full overflow-hidden bg-white px-6 py-4 shadow-md sm:max-w-md sm:rounded-lg"
+            class="w-full max-w-md rounded-xl border border-border bg-card p-6 text-card-foreground shadow-sm sm:p-8"
         >
             <slot />
         </div>
