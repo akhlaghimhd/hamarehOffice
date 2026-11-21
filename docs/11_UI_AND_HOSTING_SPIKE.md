@@ -1,25 +1,27 @@
 # Spike انتخاب رابط Vue و سازگاری با هاست اشتراکی
 
-**وضعیت:** پیشنهاد فنی موقت؛ انتخاب نهایی استقرار تا دریافت مشخصات واقعی هاست تأیید نشده است.  
+**وضعیت:** پیشنهاد spike با تصمیم UI مصوب هم‌راستا شد (2026-11-21). جزئیات نهایی deploy همچنان به مشخصات واقعی هاست وابسته است.  
 **تاریخ بررسی منابع:** 2026-11-21  
-**مبنای محصول:** Laravel + Vue 3، یک هویت واحد، UI فارسی RTL، مقصد هاست اشتراکی، Node فقط برای build.
+**مبنای محصول:** Laravel + Inertia + Vue 3 + Tailwind + shadcn-vue، یک هویت واحد، UI فارسی RTL، مقصد هاست اشتراکی، Node فقط برای build.
 
-## 1. نتیجه پیشنهادی
+## 1. نتیجه
 
-برای نسخه اول hamarehOffice، **Laravel + Inertia 3 + Vue 3 در یک مخزن و یک origin** گزینه ترجیحی است؛ با این شروط:
+برای hamarehOffice پشته مصوب عبارت است از:
+
+**Laravel + Inertia 3 + Vue 3 + Tailwind CSS + shadcn-vue** در یک مخزن و یک origin، با این شروط:
 
 - SSR فعال نشود؛ خروجی Vite در زمان توسعه/build تولید و فایل‌های build شده deploy شوند.
 - Node فقط در محیط توسعه یا CI برای build استفاده شود؛ روی هاست Node server اجرا نشود.
 - احراز هویت مرورگر از Session استاندارد Laravel و همان دامنه استفاده کند؛ هویت یا login موازی ساخته نشود.
 - Laravel مرجع نهایی Company Context، Permission، Validation و منطق دامنه باقی بماند.
-- UI با Design System اختصاصی Vue/CSS ساخته شود؛ هیچ Admin Template یا پنل‌ساز تحمیل نشود.
+- UI با shadcn-vue و Tailwind ساخته شود؛ Filament و پنل‌ساز محدودکننده ممنوع است.
 - API عمومی/موبایل در آینده، در صورت نیاز واقعی، به‌صورت مسیرهای جدا در همان Laravel و با همان Action/Policyها افزوده شود؛ نیاز به جدا کردن SPA در فاز اول وجود ندارد.
 
-این توصیه بر مبنای نیاز فعلی CRM خصوصی و یکپارچه است، نه الزام دائمی. اگر هاست Inertia/Vite asset deployment یا مسیر امن document root را پشتیبانی نکند، باید نتیجه spike بازنگری شود.
+سند تصمیم رسمی: `04_UI_MIGRATION_DECISION.md`.
 
 ## 2. شواهد رسمی فنی
 
-- مستند Laravel 13، Starter Kit رسمی Vue را مبتنی بر Vue 3 و Inertia معرفی می‌کند و توضیح می‌دهد Inertia مسیر/Controller و احراز هویت Laravel را با frontend مدرن Vue در یک repository ترکیب می‌کند. این کیت در حال حاضر Tailwind و shadcn-vue نیز دارد؛ استفاده از UI آماده آن برای هم‌ره الزامی نیست و می‌توان فقط الگوی اتصال را انتخاب کرد.  
+- مستند Laravel 13، Starter Kit رسمی Vue را مبتنی بر Vue 3 و Inertia معرفی می‌کند و توضیح می‌دهد Inertia مسیر/Controller و احراز هویت Laravel را با frontend مدرن Vue در یک repository ترکیب می‌کند. این کیت در حال حاضر Tailwind و shadcn-vue نیز دارد.  
   منابع: [Laravel 13 Starter Kits](https://laravel.com/framework/docs/13.x/starter-kits)، [Laravel 13 Frontend](https://laravel.com/framework/docs/13.x/frontend)
 - Laravel Vite، CSS و JavaScript را به فایل‌های production-ready تبدیل می‌کند؛ Node برای نصب وابستگی و build لازم است، نه برای سرویس‌دهی runtime فایل‌های build شده. SSR در مستندات به‌عنوان مسیر جداگانه با اجرای Node server معرفی شده است؛ برای CRM خصوصی هم‌ره در فاز اول لازم نیست.  
   منبع: [Laravel 13 Vite](https://laravel.com/framework/docs/13.x/vite)
@@ -48,14 +50,13 @@
 | API مستقل در آینده | قابل افزودن در همان Laravel | از ابتدا API محورتر است |
 | ریسک چند کلاینت | مناسب یک UI اصلی | مناسب‌تر وقتی چند frontend مستقل از ابتدا قطعی باشند |
 
-## 4. تصمیم‌های پیشنهادی پیاده‌سازی
+## 4. تصمیم‌های پیاده‌سازی مصوب
 
 ### Frontend
-- Vue 3 Composition API و TypeScript برای صفحات پیچیده و قراردادهای داده.
+- Vue 3 Composition API (و TypeScript در صفحات پیچیده در صورت نیاز).
 - Inertia برای navigation و انتقال props؛ Vue فقط presentation و interaction.
-- Design System اختصاصی با CSS variables/tokens، کامپوننت‌های پایه و الگوی فرم/جدول موبایل.
-- هیچ Admin Template، CRUD generator یا component library اجباری وارد پروژه نشود.
-- Tailwind اختیاری است؛ اگر استفاده شود فقط ابزار CSS است و جایگزین طراحی اختصاصی نیست.
+- **shadcn-vue + Tailwind** به‌عنوان سیستم کامپوننت و استایل؛ کامپوننت‌ها در پروژه نگهداری و سفارشی می‌شوند.
+- Filament، Admin Template محدودکننده و پنل‌ساز خارج از محدوده.
 - SSR، Node server، Nuxt و SPA repository جدا در فاز اول اضافه نشوند.
 
 ### Backend
@@ -76,7 +77,7 @@
 - فایل‌ها در storage خصوصی قرار گیرند؛ symlink/public storage تا زمان تأیید هاست فرض نشود.
 - deploy شامل Composer install مناسب، build artifact، backup، migration کنترل‌شده، cache، health check و rollback باشد.
 
-## 5. دروازه‌های آزمون پیش از تصویب نهایی
+## 5. دروازه‌های آزمون پیش از scaffold و deploy نهایی
 
 ### آزمون محلی
 - ورود و خروج، CSRF و session.
@@ -116,8 +117,8 @@
 
 ## 7. نتیجه و وضعیت
 
-- **پیشنهاد موقت:** Inertia 3 + Vue 3 + Laravel در یک repository، same-origin، SSR خاموش و Vite build-time.
-- **عدم انتخاب:** SPA جدا با API/Sanctum برای نسخه اول؛ مگر آنکه چند frontend مستقل یا محدودیت مشخص هاست این انتخاب را توجیه کند.
-- **عدم تغییر:** هنوز package نصب، scaffold یا فایل اجرایی ایجاد نشده است.
-- **نیازمند مالک:** مشخصات واقعی هاست و تأیید اینکه دسترسی document root/Cron/Composer در پلن موجود است.
-- **گام بعد:** پس از دریافت مشخصات هاست، vertical slice کوچک و deploy آزمایشی؛ فقط پس از موفقیت، انتخاب UI قطعی و scaffold آغاز شود.
+- **مصوب UI:** Inertia + Vue 3 + Tailwind + shadcn-vue + Laravel در یک repository، same-origin، SSR خاموش و Vite build-time.
+- **عدم انتخاب:** Filament؛ SPA جدا با API/Sanctum برای نسخه اول مگر توجیه مشخص.
+- **عدم تغییر اجرایی:** هنوز package نصب، scaffold یا فایل اجرایی ایجاد نشده است (تا پایان ممیزی اسناد).
+- **نیازمند مالک:** مشخصات واقعی هاست و تأیید document root/Cron/Composer.
+- **گام بعد:** تکمیل ممیزی؛ سپس vertical slice کوچک و deploy آزمایشی بر پایه پشته مصوب.

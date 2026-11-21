@@ -11,13 +11,14 @@
 - نصب محلی، build، runtime test یا deploy جدید انجام نشده است.
 
 ## تصمیم‌های جاری
-- Vue 3 برای UI؛ Filament در پروژه جدید نصب یا استفاده نمی‌شود.
+- **UI مصوب (2026-11-21):** Laravel + **Inertia** + **Vue 3** + **Tailwind CSS** + **shadcn-vue**.
+- Filament در پروژه جدید نصب یا استفاده نمی‌شود.
 - Laravel backend و MariaDB.
-- هاست اشتراکی مقصد؛ Node فقط build-time.
-- Spike `11_UI_AND_HOSTING_SPIKE.md` انجام شد؛ پیشنهاد موقت Inertia 3 + Vue 3 در همان Laravel repository، same-origin، SSR خاموش و Vite build-time است؛ تصویب نهایی به مشخصات واقعی هاست و deploy آزمایشی وابسته است.
+- هاست اشتراکی مقصد؛ Node فقط build-time؛ SSR خاموش.
+- Spike `11_UI_AND_HOSTING_SPIKE.md` انجام شد و با تصمیم UI هم‌راستا شد؛ جزئیات deploy نهایی همچنان به مشخصات واقعی هاست وابسته است.
 - Identity واحد و جداسازی با `company_id` الزامی است.
 - UI فارسی RTL، اعداد فارسی و تاریخ شمسی.
-- مرحله فعلی: بازنگری اولیه M00 تا M12 انجام شده؛ ممیزی اتصال بین‌ماژولی و تکمیل عمیق M00 تا M02 در جریان است؛ سپس spike معماری UI/هاست.
+- مرحله فعلی: بازنگری اولیه M00 تا M12 انجام شده؛ ممیزی اتصال بین‌ماژولی و تکمیل عمیق M00 تا M02 در جریان است؛ تصمیم UI ثبت شد.
 
 ## انتقال اسناد
 - ۳۸ فایل Markdown از `hamarehCRM/اسناد/` در Commit `25ba93d0408b4b641e7fb52989e89557381cbaed` به `docs/reference/legacy-hamarehCRM/` منتقل شده‌اند.
@@ -30,7 +31,7 @@
 
 ## بازنگری ماژول‌ها
 - M00 Foundation: سند `modules/M00_FOUNDATION.md` تکمیل شد؛ CompanyContext، BelongsToCompany، CompanyAwareJob، NumberSequence، Attachment، AuditObserver، Migrationها و تست‌های منتخب بررسی شدند. نکات جدید: Console هنوز امکان fallback به Session دارد؛ AuditObserver فقط پنج مدل را پوشش می‌دهد؛ purge فایل و concurrency واقعی Sequence نیازمند تکمیل‌اند. تست‌ها اجرا نشده‌اند.
-- M01 Identity & Access: سند `modules/M01_IDENTITY_ACCESS.md` عمیق‌تر شد؛ User/Role/Permission، CompanyContext، CompanyMembershipAccess، Migration pivotها، Actionهای عضویت/نقش و تست‌های منتخب بررسی شدند. dual-write/fallback نقش legacy و جدید، admin wildcard، طبقه‌بندی چندمنبعی Permissionهای مرکزی و نبود FK مرکب role/membership ثبت شدند.
+- M01 Identity & Access: سند `modules/M01_IDENTITY_ACCESS.md` عمیق‌تر شد؛ User/Role/Permission، CompanyContext، CompanyMembershipAccess، Migration pivotها، Actionهای عضویت/نقش و تست‌های منتخب بررسی شدند. dual-write/fallback نقش legacy و جدید، admin wildcard، طبقه‌بندی چندمنبعی Permissionهای مرکزی و نبود FK مرکب user/membership ثبت شدند.
 - M01 شکاف‌های طراحی شامل اتصال مستقیم User به Filament، دوگانگی pivot نقش legacy و جدید، رفتار دسترسی فراگیر نقش admin و نیاز به قرارداد یکپارچه مجوز و زمینه شرکت را ثبت کرده است.
 - M02 Organization & Company: سند `modules/M02_ORGANIZATION_COMPANY.md` عمیق‌تر شد؛ Settings/Theme، نسخه هویت مالی و حساب، Actionها و Migrationها بررسی شدند. شماره حساب/شبا/کارت و Snapshotها در کد منتخب plaintext هستند؛ FK مرکب شرکت/هویت و unique DB حساب پیش‌فرض وجود ندارد؛ مجوز تنظیمات فقط admin است.
 - M02 تصمیم‌های متأخر تاریخی درباره داشبورد مستقل شرکت و تعیین مدیر پس از ایجاد را از تصمیم‌های قدیمی‌تر Drawer/ایجاد اجباری مدیر اولیه تفکیک کرده است.
@@ -47,16 +48,15 @@
 - M11 Reporting & Notifications: سند `modules/M11_REPORTING_NOTIFICATIONS.md` ایجاد شد؛ KPI Widgetها، FollowUpNeeded، Command اعلان سررسید، Scheduler، Migration notifications و تست منتخب بررسی شدند. KPI پایه و اعلان ساعتی Task/Activity شواهد دارند؛ اما dedupe فقط Cacheمحور است، ترجیحات کانال/Escalation/Export کامل نیست، URLها Filament-specific هستند و تست Activity/dedupe/company/timezone محدود است. تست اجرا نشده است.
 - M12 Sales Network & Commission: سند `modules/M12_SALES_NETWORK_COMMISSION.md` ایجاد شد؛ SalesRepresentative، Migration، Seeder مجوز، Resource، اتصال Opportunity/Quote/Order، Snapshot سفارش و تست منتخب بررسی شدند. اسکلت نماینده داخلی/بیرونی و Snapshot تک‌نماینده وجود دارد؛ اما اتصال نماینده بیرونی به Party، قرارداد نسخه‌دار، چند User محدود، انتساب چندذی‌نفع، CommissionPlan/Entry/Adjustment/Settlement و دسترسی بیرونی در کد منتخب وجود ندارد. نرخ و مبنای استحقاق عمداً تصمیم‌گیری‌نشده باقی مانده‌اند و بدون تأیید مالک فعال نمی‌شوند. تست اجرا نشده است.
 - ممیزی اتصال بین‌ماژولی: سند `10_CROSS_MODULE_ARCHITECTURE_REVIEW.md` ایجاد شد؛ قراردادهای مشترک Company Context/Identity، Party، Catalog-to-Order Snapshot، Workflow/Production، Inventory Ledger، Finance، Commission و Notification و شکاف‌های سراسری اولویت‌بندی شدند. این سند طراحی نهایی دیتابیس یا مجوز شروع پیاده‌سازی نیست.
-- Spike UI/هاست: سند `11_UI_AND_HOSTING_SPIKE.md` بر اساس مستندات جاری Laravel 13، Vite، Inertia و Sanctum تهیه شد. پیشنهاد موقت Inertia 3 + Vue 3 در یک مخزن با SSR خاموش و build-time Vite است؛ بدون Node runtime. PHP حداقل 8.3 برای Laravel 13 و document root امن روی public لازم است؛ دسترسی Cron/Composer/SSH/Queue و محدودیت‌های پلن هنوز از هاست واقعی تأیید نشده‌اند.
+- Spike UI/هاست: سند `11_UI_AND_HOSTING_SPIKE.md` بر اساس مستندات جاری Laravel 13، Vite، Inertia و Sanctum تهیه شد. پیشنهاد Inertia 3 + Vue 3 با SSR خاموش و build-time Vite با تصمیم مصوب UI (شامل Tailwind و shadcn-vue) هم‌راستا شد. PHP حداقل 8.3 برای Laravel 13 و document root امن روی public لازم است؛ دسترسی Cron/Composer/SSH/Queue و محدودیت‌های پلن هنوز از هاست واقعی تأیید نشده‌اند.
 
 ## کارهای باز
 1. تکمیل ممیزی عمیق M00 تا M02 شامل Migrationها، Seederها، Middlewareها، Routeها، Policyها، Jobها و یکپارچگی DB؛ اسناد فعلی این سه ماژول بررسی منتخب‌اند.
 2. ممیزی اتصال بین‌ماژولی M00 تا M12: Company Context/Identity، Party، Catalog Revision، Quote/Order Snapshot، Workflow/Production، Inventory Ledger، Invoice/Payment و Commission.
 3. تکمیل ماتریس سراسری «نیازمندی/تصمیم/کد قدیمی/مجوز/تست/شکاف/قرارداد جدید» و ثبت تصمیم‌های نیازمند مالک.
-4. بررسی prototype Vue به‌عنوان مرجع آزمایشی، نه مبنای معماری قطعی.
-5. دریافت مشخصات واقعی هاست اشتراکی و اجرای spike محدود انتخاب Inertia یا Blade + Vue/API با معیارهای auth/session، build، deploy، cron/queue و rollback.
-6. تعیین نسخه دقیق PHP/Laravel/MariaDB/Node بر اساس محیط محلی و هاست مقصد.
-7. پس از تکمیل ممیزی و تثبیت معماری، نصب محلی و vertical slice؛ تا آن زمان scaffold انجام نشود.
+4. دریافت مشخصات واقعی هاست اشتراکی و تأیید deploy (document root، Cron، Composer) روی محیط هم‌ارز.
+5. تعیین نسخه دقیق PHP/Laravel/MariaDB/Node بر اساس محیط محلی و هاست مقصد.
+6. پس از تکمیل ممیزی و تثبیت معماری، نصب محلی و vertical slice بر پایه پشته مصوب؛ تا آن زمان scaffold انجام نشود.
 
 **ممنوعیت مرحله جاری:** نصب Laravel، scaffold و نصب پکیج‌ها تا پایان بازنگری اسناد و ممیزی دانش شروع نشود.
 

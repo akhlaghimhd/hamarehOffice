@@ -1,7 +1,11 @@
 # استاندارد UX/UI هم‌ره
 
+**پایه فنی مصوب:** Vue 3 + Inertia + Tailwind CSS + shadcn-vue  
+جزئیات تصمیم: `04_UI_MIGRATION_DECISION.md`
+
+## اصول عمومی
 - فارسی و RTL از ابتدا؛ mobile-first واقعی.
-- Design System مرکزی با tokenهای رنگ، تایپوگرافی، spacing، radius، focus و state.
+- Design System مرکزی با tokenهای رنگ، تایپوگرافی، spacing، radius، focus و state (ترجیحاً روی Tailwind و الگوی shadcn-vue).
 - طراحی مستقل موبایل؛ نه کوچک‌کردن دسکتاپ.
 - آزمون در عرض‌های 360، 390، 430، 768، 1024 و 1280px.
 - فرم موبایل تک‌ستونی؛ label پایدار؛ فضای تایپ کافی؛ خطا نزدیک فیلد و فارسی.
@@ -14,3 +18,9 @@
 - کنتراست، focus، keyboard navigation، target لمسی و Safe Area رعایت شوند.
 - حالت روشن/تاریک در صورت پشتیبانی کامل برای همه سطوح و stateها آزمون شود.
 - UI هیچ‌گاه جایگزین Policy و authorization backend نیست.
+
+## shadcn-vue
+- کامپوننت‌های پایه از مسیر رسمی shadcn-vue افزوده و در پروژه نگهداری می‌شوند (مالکیت کد).
+- ظاهر و رفتار با Tailwind و tokenهای پروژه سفارشی می‌شود؛ وابستگی سخت به ظاهر پیش‌فرض ممنوع است.
+- برای جدول‌های پیچیده در صورت نیاز می‌توان روی همان پایه از الگوی TanStack Table استفاده کرد.
+- Filament و هر پنل‌ساز محدودکننده خارج از محدوده است.

@@ -14,13 +14,13 @@
 - Identity/Auth/Session/Company Membership/Role/Permission یکپارچه؛ سیستم موازی نساز.
 - Laravel مالک منطق دامنه و مجوز نهایی است؛ Vue لایه ارائه است.
 - Filament در پروژه جدید نصب یا استفاده نشود.
-- Inertia یا Blade + Vue/API هنوز تصمیم نهایی نیست؛ spike فنی و آزمون deploy لازم است.
+- پشته UI مصوب: **Inertia + Vue 3 + Tailwind CSS + shadcn-vue** (سند `04_UI_MIGRATION_DECISION.md`).
 - کاتالوگ، قیمت، قواعد و Workflow تا حد ممکن data-driven و versioned باشند.
 - Snapshot سفارش تأییدشده immutable باشد.
 - موجودی event-based و قابل ردیابی؛ جلد و داخله مستقل.
 - DB فقط با Migration تغییر کند.
 - UI فارسی، RTL و mobile-first؛ اعداد فارسی در UI و تاریخ شمسی در UI.
-- مقصد هاست اشتراکی؛ Node فقط build-time.
+- مقصد هاست اشتراکی؛ Node فقط build-time؛ SSR خاموش.
 
 ## گردش کار
 1. وضعیت Git و محیط واقعی را بررسی کن.

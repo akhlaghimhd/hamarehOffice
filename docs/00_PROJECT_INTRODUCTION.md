@@ -8,13 +8,15 @@
 
 ## جهت‌گیری فنی
 - Backend: Laravel؛ نسخه دقیق پس از بررسی محیط واقعی و هاست هدف تثبیت می‌شود.
-- UI: Vue 3؛ Filament در پروژه جدید استفاده یا نصب نمی‌شود.
+- UI: **Vue 3 + Inertia + Tailwind CSS + shadcn-vue** (مصوب 2026-11-21).
+- Filament در پروژه جدید استفاده یا نصب نمی‌شود.
 - Database: MariaDB.
 - هویت، نشست، عضویت شرکت، نقش و مجوز یکپارچه؛ بدون سامانه موازی.
 - فارسی، RTL، mobile-first، اعداد فارسی در نمایش و تاریخ شمسی در UI.
-- Node/Vite فقط برای build؛ Node runtime دائمی روی هاست لازم نیست.
+- Node/Vite فقط برای build؛ Node runtime دائمی روی هاست لازم نیست؛ SSR خاموش.
 - مقصد استقرار هاست اشتراکی است.
-- انتخاب Inertia در برابر Blade + Vue/API هنوز باز است و باید با spike محدود و معیارهای هاست انجام شود. نمونه قبلی Blade/Vue/fetch، Inertia نیست.
+
+جزئیات تصمیم UI: `04_UI_MIGRATION_DECISION.md`.
 
 ## اصول قطعی دامنه
 1. ایزوله‌سازی داده عملیاتی با `company_id`؛ `tenant_id` ممنوع.
