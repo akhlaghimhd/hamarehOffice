@@ -14,7 +14,7 @@
 - Vue 3 برای UI؛ Filament در پروژه جدید نصب یا استفاده نمی‌شود.
 - Laravel backend و MariaDB.
 - هاست اشتراکی مقصد؛ Node فقط build-time.
-- Inertia یا Blade + Vue/API هنوز باز است و باید با spike محدود تعیین شود.
+- Spike `11_UI_AND_HOSTING_SPIKE.md` انجام شد؛ پیشنهاد موقت Inertia 3 + Vue 3 در همان Laravel repository، same-origin، SSR خاموش و Vite build-time است؛ تصویب نهایی به مشخصات واقعی هاست و deploy آزمایشی وابسته است.
 - Identity واحد و جداسازی با `company_id` الزامی است.
 - UI فارسی RTL، اعداد فارسی و تاریخ شمسی.
 - مرحله فعلی: بازنگری اولیه M00 تا M12 انجام شده؛ ممیزی اتصال بین‌ماژولی و تکمیل عمیق M00 تا M02 در جریان است؛ سپس spike معماری UI/هاست.
@@ -47,6 +47,7 @@
 - M11 Reporting & Notifications: سند `modules/M11_REPORTING_NOTIFICATIONS.md` ایجاد شد؛ KPI Widgetها، FollowUpNeeded، Command اعلان سررسید، Scheduler، Migration notifications و تست منتخب بررسی شدند. KPI پایه و اعلان ساعتی Task/Activity شواهد دارند؛ اما dedupe فقط Cacheمحور است، ترجیحات کانال/Escalation/Export کامل نیست، URLها Filament-specific هستند و تست Activity/dedupe/company/timezone محدود است. تست اجرا نشده است.
 - M12 Sales Network & Commission: سند `modules/M12_SALES_NETWORK_COMMISSION.md` ایجاد شد؛ SalesRepresentative، Migration، Seeder مجوز، Resource، اتصال Opportunity/Quote/Order، Snapshot سفارش و تست منتخب بررسی شدند. اسکلت نماینده داخلی/بیرونی و Snapshot تک‌نماینده وجود دارد؛ اما اتصال نماینده بیرونی به Party، قرارداد نسخه‌دار، چند User محدود، انتساب چندذی‌نفع، CommissionPlan/Entry/Adjustment/Settlement و دسترسی بیرونی در کد منتخب وجود ندارد. نرخ و مبنای استحقاق عمداً تصمیم‌گیری‌نشده باقی مانده‌اند و بدون تأیید مالک فعال نمی‌شوند. تست اجرا نشده است.
 - ممیزی اتصال بین‌ماژولی: سند `10_CROSS_MODULE_ARCHITECTURE_REVIEW.md` ایجاد شد؛ قراردادهای مشترک Company Context/Identity، Party، Catalog-to-Order Snapshot، Workflow/Production، Inventory Ledger، Finance، Commission و Notification و شکاف‌های سراسری اولویت‌بندی شدند. این سند طراحی نهایی دیتابیس یا مجوز شروع پیاده‌سازی نیست.
+- Spike UI/هاست: سند `11_UI_AND_HOSTING_SPIKE.md` بر اساس مستندات جاری Laravel 13، Vite، Inertia و Sanctum تهیه شد. پیشنهاد موقت Inertia 3 + Vue 3 در یک مخزن با SSR خاموش و build-time Vite است؛ بدون Node runtime. PHP حداقل 8.3 برای Laravel 13 و document root امن روی public لازم است؛ دسترسی Cron/Composer/SSH/Queue و محدودیت‌های پلن هنوز از هاست واقعی تأیید نشده‌اند.
 
 ## کارهای باز
 1. تکمیل ممیزی عمیق M00 تا M02 شامل Migrationها، Seederها، Middlewareها، Routeها، Policyها، Jobها و یکپارچگی DB؛ اسناد فعلی این سه ماژول بررسی منتخب‌اند.
