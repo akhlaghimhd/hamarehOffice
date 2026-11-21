@@ -42,12 +42,50 @@
 |---|---|---|
 | Company scope | `app/Models/Concerns/BelongsToCompany.php` | در saving، شرکت جاری الزامی است؛ در نبود Company Context، Global Scope نتیجه خالی می‌دهد |
 | Attachment | `Attachment.php`, `StoreAttachment.php`, `DeleteAttachment.php` | مدل polymorphic، checksum، uploader و ذخیره فایل؛ StoreAttachment مجوز update موجودیت والد را بررسی می‌کند |
-| Audit | `AuditEvent.php` | مدل رخداد با actor، subject، before/after و metadata وجود دارد |
-| Number Sequence | `NumberSequenceTest.php` و Migration مربوط | تست‌های منبع برای توالی، جداسازی شرکت/نوع سند و rollback وجود دارند؛ خود سرویس باید جداگانه ممیزی شود |
+| Audit | `AuditEvent.php`، `AuditObserver.php` و `AppServiceProvider.php` | Observer فقط روی Activity/Order/Quote/Task/WorkPackage ثبت شده و فهرست فیلدهای مجاز دارد؛ دامنه ثبت هنوز همه اسناد مالی/موجودی/هویت/شرکت را پوشش نمی‌دهد |
+| Number Sequence | `app/Support/NumberSequence.php`، Migration و `NumberSequenceTest.php` | تراکنش، insertOrIgnore، lockForUpdate، unique company/key/period، کنترل Company Context و rollback در کد/تست مشاهده شد؛ تست هم‌زمانی واقعی هنوز اجرا/اثبات نشده است |
 | Job Company Context | `CompanyAwareJobTest.php` | تست منبع برای Company ID صریح، عدم اتکا به Session و restore context وجود دارد |
 | Attachment isolation | `AttachmentIsolationTest.php` | تست منبع برای private disk، جلوگیری از دانلود cross-company و حذف منطقی وجود دارد |
 
 **محدودیت:** فایل‌های تست از Git خوانده شده‌اند، اما در این مرحله اجرا نشده‌اند. بنابراین نتیجه آزمون «نامشخص/اجرا نشده» است. وجود کلاس یا تست به معنی کامل بودن امنیت یا آمادگی انتقال نیست.
+
+## ممیزی تکمیلی کد مشترک
+
+### Company Context و Scope
+- `CompanyContext` در `AppServiceProvider` به‌صورت scoped ثبت شده است؛ این برای جلوگیری از ماندگاری زمینه بین چرخه‌های درخواست/Job مناسب است.
+- `BelongsToCompany` در زمان save، زمینه شرکت را اجباری و تغییر company_id را رد می‌کند؛ Global Scope در نبود زمینه، Query را خالی می‌کند.
+- `CompanyContext::runForCompany()` فقط در Console اجرا می‌شود، شرکت فعال را بررسی می‌کند و زمینه سیستمی قبلی را در finally restore می‌کند.
+- در Console، اگر زمینه سیستمی وجود نداشته باشد، `currentCompanyId()` هنوز می‌تواند از Session خوانده شود؛ Seederهای قدیمی نیز Session را برای هر شرکت تغییر می‌دهند. در معماری جدید Job/Command باید فقط از context صریح استفاده کند و fallback به Session حذف شود.
+- در وب، AppServiceProvider انتخاب Session را با عضویت/فعال بودن شرکت بررسی و در نبود انتخاب، default صریح را تنظیم می‌کند. رفتار endpoint/API مستقل از Session هنوز باید طراحی شود.
+
+### Job
+- `CompanyAwareJob` شناسه شرکت را در constructor اجباری می‌کند، afterCommit، retry/backoff/timeout دارد و Middleware زمینه را resolve می‌کند.
+- تست‌های خوانده‌شده زمینه صریح مستقل از Session، restore پس از exception، رد شرکت غیرفعال و سیاست retry را پوشش می‌دهند.
+- این قرارداد فقط برای Jobهای توسعه‌یافته از کلاس پایه اعمال می‌شود؛ Jobهای دیگر خودکار company-aware نیستند. ممیزی همه Jobها و تضمین actor/authorization در Job باقی است.
+
+### Number Sequence
+- سرویس در Transaction ردیف sequence را با insertOrIgnore ایجاد و با lockForUpdate قفل می‌کند؛ unique(company_id, sequence_key, period) و کنترل company context دارد.
+- تست‌های موجود افزایش ترتیبی، جداسازی شرکت/نوع سند، rollback و رد درخواست برای شرکت دیگر را پوشش می‌دهند.
+- تست concurrency چند اتصال/درخواست واقعی در این فایل وجود ندارد؛ قفل و unique طراحی مناسبی دارند اما نتیجه هم‌زمانی در محیط MariaDB باید اجرا و اثبات شود.
+- دوره پیش‌فرض با سال میلادی `now()->format('Y')` ساخته می‌شود؛ شماره سند نمایشی/شمسی و دوره مالی باید در قرارداد شماره‌گذاری جداگانه تصمیم‌گیری شود.
+
+### Attachment
+- StoreAttachment حجم را تا ۲۵ مگابایت کنترل، company_id والد را با شرکت جاری تطبیق و Gate update را اجرا می‌کند؛ فایل در مسیر تصادفی UUID ذخیره می‌شود.
+- در صورت شکست ثبت Metadata، فایل فیزیکی حذف می‌شود؛ حذف عادی فقط SoftDelete است و فایل برای retention باقی می‌ماند.
+- دانلود/Preview/Delete زیر auth هستند و Policy به Policy موجودیت والد ارجاع می‌دهد؛ Preview فقط MIME تصویری allowlist شده را با nosniff و private/no-store برمی‌گرداند.
+- فایل‌ها در Migration به‌صورت Morph متصل‌اند؛ FK مرکب company_id + attachable وجود ندارد. مسیر Action این تعلق را کنترل می‌کند، اما ایجاد مستقیم Model می‌تواند آن را دور بزند؛ مسیرهای نوشتن باید به Action محدود شوند.
+- purge فیزیکی زمان‌بندی‌شده، retention، quota، malware scan و رفتار حذف/بایگانی شرکت در شواهد بررسی‌شده مشاهده نشدند.
+
+### Audit
+- Observer فقط روی Activity، Order، Quote، Task و WorkPackage ثبت شده است؛ Invoice، Payment، StockLevel، StockMovement، SalesRepresentative، Company و تغییرات هویت مالی در ثبت Observer حاضر نیستند.
+- فهرست فیلدهای Audit allowlist شده و notes آزاد عمداً ثبت نمی‌شوند؛ این تصمیم از افشای متن خصوصی جلوگیری می‌کند، اما برای هر سند باید مشخص شود کدام داده مالی/امنیتی ضروری است.
+- actor از Auth::id خوانده می‌شود؛ در Job/CLI بدون کاربر تعاملی ممکن است null باشد. عملیات سیستمی باید actor نوع system/service و منبع/شناسه Job را ثبت کند.
+- Observer در تراکنش فراخواننده شرکت می‌کند اگر save در transaction انجام شده باشد؛ برای عملیات خارج از transaction تضمین اتمیک بودن تغییر و Audit باید صریح شود.
+- AuditEvent خودش company-scoped است؛ FK مرکب برای هم‌شرکتی بودن auditable و AuditEvent در Migration بررسی‌شده وجود ندارد.
+
+### وضعیت تست
+- فایل‌های `CompanyAwareJobTest`، `NumberSequenceTest`، `AttachmentIsolationTest`، `AttachmentPreviewTest` و `BusinessAuditTest` خوانده شدند.
+- هیچ‌کدام در این ممیزی اجرا نشده‌اند؛ وجود تست، نتیجه اجرای موفق نیست.
 
 ## قرارداد انتقال به پروژه جدید
 - قرارداد Company Context در Laravel تعریف می‌شود؛ Vue فقط شرکت انتخاب‌شده و مجوزهای نمایشی را دریافت می‌کند.
