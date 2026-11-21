@@ -69,6 +69,32 @@
 6. کنترل‌های نقش مدیر و مدیر مستقیم در چند Action و مدل پخش شده‌اند؛ باید سیاست واحدی برای authorization و invariantهای عضویت طراحی شود.
 7. بررسی این مرحله پوشش کامل تمام Routeها، Middlewareها، Policyها، Seederها، جدول‌های هویت و تست‌های کل سامانه نیست؛ این موارد در ممیزی تکمیلی باقی‌اند.
 
+## ممیزی تکمیلی ساختار نقش و عضویت
+
+### مدل نقش و Permission
+- `User::currentRoles()` ابتدا pivot جدید `company_user_role` را می‌خواند و فقط وقتی هیچ ردیفی ندارد به `company_user.role_id` قدیمی fallback می‌کند.
+- Migration توسعه نقش‌ها، داده legacy را به pivot جدید backfill می‌کند؛ اما ستون role_id باقی مانده و `UpdateCompanyMembership` نیز هم role_id اول و هم pivot چندنقشی را به‌روز می‌کند. این dual-write/fallback یک دوره گذار است و نباید به schema جدید منتقل شود.
+- `Role::effectivePermissionIds()` در Queryهای والد، company_id را محدود و چرخه را با visited guard متوقف می‌کند؛ Action تغییر hierarchy نیز parent بین‌شرکتی، self-parent و cycle را رد می‌کند.
+- `Permission::SYSTEM_NAMES` فقط `roles.manage` را فهرست می‌کند؛ بخشی از حفاظت با `SYSTEM_GROUPS` انجام می‌شود و Migration بعدی `companies.manage` را از گروه system به گروه شرکت منتقل کرده است. طبقه‌بندی مجوزهای مرکزی هنوز چندمنبعی است.
+- `CompanyMembershipAccess`، `User::hasPermission()` و Actionهای Role هرکدام بخشی از منطق دسترسی را محاسبه می‌کنند؛ قرارداد یک Permission Resolver مرکزی در شواهد منتخب دیده نشد.
+- `User::hasPermission()` برای هر عضویت دارای Role با نام admin مقدار true برمی‌گرداند؛ این wildcard حتی Permissionهای بعدی را هم شامل می‌شود. این رفتار تصمیم امنیتی پرریسک است و نباید بدون تعریف محدوده/استثنا کپی شود.
+
+### Migration و قیود
+- `company_user_role` دارای unique(company_user_id, role_id) است، اما FK role_id به Role ساده است؛ قید DB برای هم‌شرکتی بودن Role و Membership مشاهده نشد. Action فعلی این شرط را در لایه برنامه کنترل می‌کند.
+- `roles.parent_role_id` نیز FK ساده به roles است؛ هم‌شرکتی بودن parent در Action/Query بررسی می‌شود، نه با FK مرکب.
+- `manager_membership_histories` در Migration بررسی‌شده company_id/user/manager/actor را unsignedBigInteger و دارای index می‌سازد؛ FK به companies/users و unique یا constraint اضافی در همان Migration مشاهده نشد.
+- حذف Role و حذف Membership در چند مسیر مختلف انجام می‌شود؛ سیاست حفظ Audit/history و اثر FKهای cascade/null باید در طراحی جدید واحد شود.
+
+### زمینه شرکت و احراز هویت
+- SwitchCompany انتخاب Session را با CompanyContext اعتبارسنجی و بعد از تعویض، مجوزها را از Roleهای شرکت جدید resolve می‌کند؛ تست موجود عدم باقی‌ماندن Permission شرکت قبلی را بررسی می‌کند.
+- User مستقیماً FilamentUser را پیاده‌سازی می‌کند و canAccessPanel صرفاً is_active را بررسی می‌کند؛ این اتصال UI در پروژه جدید حذف می‌شود.
+- تست‌های اصلی Identity شامل Livewire/Filament هستند؛ برای معماری Vue باید همان قواعد از مسیرهای HTTP/API/Action مستقل آزمون شوند.
+- درخت مدیر از pivot عضویت شرکت محاسبه می‌شود؛ تست منتخب مستقیم/غیرمستقیم و عدم نشت به شرکت دیگر را پوشش می‌دهد. تغییرات هم‌زمان ساختار مدیر و رفتار پس از غیرفعال شدن مدیر/عضو نیازمند تست تکمیلی است.
+
+### تست و وضعیت اجرا
+- `SwitchCompanyTest`، `UserRoleHierarchyTest`، `RoleResourceProtectionTest` و `PlatformOwnerBootstrapTest` خوانده شدند؛ سناریوهای نقش چندگانه، ارث‌بری، Snapshot کپی، چرخه، مرز شرکت، تغییر مدیر، حفاظت admin و bootstrap مالک پلتفرم در تست‌های منتخب دیده می‌شوند.
+- تست‌ها در این بازنگری اجرا نشده‌اند؛ پوشش Livewire به‌تنهایی مجوز/Policy مستقل از UI را اثبات نمی‌کند.
+
 ## قرارداد انتقال به hamarehOffice
 - یک جدول User و یک سیستم ورود/Session در Laravel؛ هیچ حساب یا Role موازی در Vue ایجاد نشود.
 - عضویت شرکت دارای کلید یکتای مناسب و رابطه روشن به User و Company باشد؛ نقش‌های متعدد از ابتدا با مدل داده واحد پیاده شوند.
