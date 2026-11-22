@@ -64,6 +64,14 @@ const statusLabel: Record<string, string> = {
 
 const productItems = ['نوتوپیا', 'سایر محصولات چاپی', 'خدمات سفارشی']
 
+function productsOf(item: any): string[] {
+  if (item.products?.length)
+    return item.products
+  if (item.product_name)
+    return [item.product_name]
+  return []
+}
+
 function openCreate() {
   form.value = emptyForm()
   dirty.value = false
@@ -72,6 +80,10 @@ function openCreate() {
 
 function goToOpportunity(_event: unknown, ctx: { item: { id: number } }) {
   router.push('/opportunities/' + ctx.item.id)
+}
+
+function openItem(id: number) {
+  router.push('/opportunities/' + id)
 }
 
 async function load() {
@@ -148,12 +160,12 @@ onMounted(load)
 
 <template>
   <div>
-    <div class="d-flex flex-wrap align-center justify-space-between gap-4 mb-6">
+    <div class="d-flex flex-wrap align-center justify-space-between gap-4 mb-4 mb-md-6">
       <div>
         <h4 class="text-h4 mb-1">
           فرصت‌ها
         </h4>
-        <p class="text-body-1 text-medium-emphasis mb-0">
+        <p class="text-body-2 text-medium-emphasis mb-0">
           همه فرصت‌ها · {{ toFaDigits(items.length) }} مورد
         </p>
       </div>
@@ -172,8 +184,8 @@ onMounted(load)
           v-model="filters.q"
           density="compact"
           hide-details
-          label="جستجوی سازمان، کد، مخاطب..."
-          style="min-inline-size: 16rem;"
+          label="جستجو..."
+          style="min-inline-size: 12rem; flex: 1;"
           @keyup.enter="load"
         />
         <VSelect
@@ -181,7 +193,7 @@ onMounted(load)
           :items="statusItems"
           density="compact"
           hide-details
-          style="min-inline-size: 11rem;"
+          style="min-inline-size: 10rem;"
           @update:model-value="load"
         />
         <VSelect
@@ -189,7 +201,7 @@ onMounted(load)
           :items="stages"
           density="compact"
           hide-details
-          style="min-inline-size: 12rem;"
+          style="min-inline-size: 10rem;"
           @update:model-value="load"
         />
         <VBtn
@@ -197,12 +209,13 @@ onMounted(load)
           color="secondary"
           @click="load"
         >
-          اعمال فیلتر
+          فیلتر
         </VBtn>
       </VCardText>
     </VCard>
 
-    <VCard>
+    <!-- دسکتاپ: جدول -->
+    <VCard class="d-none d-md-block">
       <VDataTable
         :headers="[
           { title: 'کد', key: 'code' },
@@ -224,7 +237,7 @@ onMounted(load)
         <template #item.products="{ item }">
           <div class="d-flex flex-wrap gap-1 py-1">
             <VChip
-              v-for="p in (item.products?.length ? item.products : (item.product_name ? [item.product_name] : []))"
+              v-for="p in productsOf(item)"
               :key="p"
               size="small"
               variant="tonal"
@@ -232,7 +245,7 @@ onMounted(load)
             >
               {{ p }}
             </VChip>
-            <span v-if="!(item.products?.length || item.product_name)">—</span>
+            <span v-if="!productsOf(item).length">—</span>
           </div>
         </template>
         <template #item.status="{ item }">
@@ -252,6 +265,69 @@ onMounted(load)
         <template #bottom />
       </VDataTable>
     </VCard>
+
+    <!-- موبایل: کارت -->
+    <div class="d-md-none">
+      <div
+        v-if="loading"
+        class="text-center py-8 text-medium-emphasis"
+      >
+        در حال بارگذاری...
+      </div>
+      <div
+        v-else-if="!items.length"
+        class="text-center py-8 text-medium-emphasis"
+      >
+        فرصتی ثبت نشده
+      </div>
+      <VCard
+        v-for="item in items"
+        :key="item.id"
+        class="mb-3 mobile-list-card"
+        @click="openItem(item.id)"
+      >
+        <VCardText class="pa-4">
+          <div class="d-flex align-start justify-space-between gap-2 mb-2">
+            <div>
+              <div class="text-subtitle-1 font-weight-medium">
+                {{ item.organization_name }}
+              </div>
+              <div class="text-caption text-medium-emphasis">
+                {{ toFaDigits(item.code) }}
+              </div>
+            </div>
+            <VChip
+              size="small"
+              variant="tonal"
+              color="primary"
+            >
+              {{ statusLabel[item.status] || item.status }}
+            </VChip>
+          </div>
+
+          <div class="d-flex flex-wrap gap-1 mb-2">
+            <VChip
+              v-for="p in productsOf(item)"
+              :key="p"
+              size="x-small"
+              variant="outlined"
+            >
+              {{ p }}
+            </VChip>
+          </div>
+
+          <div class="text-body-2 mb-1">
+            <span class="text-medium-emphasis">مرحله: </span>{{ item.stage?.name || '—' }}
+          </div>
+          <div class="text-body-2 mb-1">
+            <span class="text-medium-emphasis">گام بعدی: </span>{{ item.next_step || '—' }}
+          </div>
+          <div class="text-caption text-medium-emphasis">
+            {{ formatJalaliFa(item.next_step_due_on) }}
+          </div>
+        </VCardText>
+      </VCard>
+    </div>
 
     <FormDrawer
       v-model="drawerOpen"
@@ -341,3 +417,13 @@ onMounted(load)
     </FormDrawer>
   </div>
 </template>
+
+<style scoped>
+.mobile-list-card {
+  cursor: pointer;
+  transition: box-shadow 0.15s ease;
+}
+.mobile-list-card:active {
+  box-shadow: 0 2px 8px rgba(var(--v-shadow-key-umbra-color), 0.12);
+}
+</style>
