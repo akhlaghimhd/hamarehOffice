@@ -19,6 +19,7 @@ class Opportunity extends Model
         'code',
         'organization_name',
         'product_name',
+        'products',
         'industry',
         'industry_note',
         'contact_name',
@@ -49,6 +50,7 @@ class Opportunity extends Model
     protected function casts(): array
     {
         return [
+            'products' => 'array',
             'next_step_due_on' => 'date',
             'last_interaction_at' => 'datetime',
         ];
