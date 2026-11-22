@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import {
   formatJalaliFa,
+  isFixedJalaliHoliday,
+  isFridayIso,
   isoToJalaliParts,
   jalaliMonthLength,
   jalaliToGregorian,
@@ -17,17 +19,25 @@ defineProps<{
 }>()
 
 const menu = ref(false)
-const view = ref({ jy: 1404, jm: 1 })
 
-watch(
-  () => model.value,
-  (iso) => {
-    const p = isoToJalaliParts(iso || todayIso())
-    if (p)
-      view.value = { jy: p.jy, jm: p.jm }
-  },
-  { immediate: true },
-)
+function todayParts() {
+  return isoToJalaliParts(todayIso()) || { jy: 1404, jm: 1, jd: 1 }
+}
+
+const view = ref(todayParts())
+
+function syncViewFromModel() {
+  const p = isoToJalaliParts(model.value || todayIso())
+  if (p)
+    view.value = { jy: p.jy, jm: p.jm, jd: p.jd }
+}
+
+watch(() => model.value, syncViewFromModel, { immediate: true })
+
+watch(menu, (open) => {
+  if (open)
+    syncViewFromModel()
+})
 
 const monthNames = [
   'فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور',
@@ -42,8 +52,7 @@ const monthItems = monthNames.map((title, i) => ({
 }))
 
 const yearItems = computed(() => {
-  const today = isoToJalaliParts(todayIso())
-  const center = today?.jy ?? 1404
+  const center = todayParts().jy
   const list: { title: string; value: number }[] = []
   for (let y = center - 20; y <= center + 10; y++)
     list.push({ title: toFaDigits(y), value: y })
@@ -56,37 +65,49 @@ const days = computed(() => {
   const [gy, gm, gd] = jalaliToGregorian(jy, jm, 1)
   const first = new Date(gy, gm - 1, gd)
   const offset = (first.getDay() + 1) % 7
-  const cells: Array<{ day: number | null; iso: string | null }> = []
+  const cells: Array<{
+    day: number | null
+    iso: string | null
+    friday: boolean
+    holiday: boolean
+  }> = []
+
   for (let i = 0; i < offset; i++)
-    cells.push({ day: null, iso: null })
+    cells.push({ day: null, iso: null, friday: false, holiday: false })
+
   for (let d = 1; d <= len; d++) {
     const [y, m, day] = jalaliToGregorian(jy, jm, d)
     const iso = y + '-' + String(m).padStart(2, '0') + '-' + String(day).padStart(2, '0')
-    cells.push({ day: d, iso })
+    cells.push({
+      day: d,
+      iso,
+      friday: isFridayIso(iso),
+      holiday: isFixedJalaliHoliday(jy, jm, d),
+    })
   }
   return cells
 })
 
 function prevMonth() {
   if (view.value.jm === 1)
-    view.value = { jy: view.value.jy - 1, jm: 12 }
+    view.value = { jy: view.value.jy - 1, jm: 12, jd: 1 }
   else
-    view.value = { jy: view.value.jy, jm: view.value.jm - 1 }
+    view.value = { jy: view.value.jy, jm: view.value.jm - 1, jd: 1 }
 }
 
 function nextMonth() {
   if (view.value.jm === 12)
-    view.value = { jy: view.value.jy + 1, jm: 1 }
+    view.value = { jy: view.value.jy + 1, jm: 1, jd: 1 }
   else
-    view.value = { jy: view.value.jy, jm: view.value.jm + 1 }
+    view.value = { jy: view.value.jy, jm: view.value.jm + 1, jd: 1 }
 }
 
 function onMonthChange(jm: number) {
-  view.value = { jy: view.value.jy, jm }
+  view.value = { jy: view.value.jy, jm, jd: 1 }
 }
 
 function onYearChange(jy: number) {
-  view.value = { jy, jm: view.value.jm }
+  view.value = { jy, jm: view.value.jm, jd: 1 }
 }
 
 function pick(iso: string | null) {
@@ -101,7 +122,15 @@ function clear() {
   menu.value = false
 }
 
+function pickToday() {
+  const iso = todayIso()
+  model.value = iso
+  syncViewFromModel()
+  menu.value = false
+}
+
 const display = computed(() => formatJalaliFa(model.value))
+const todayIsoStr = todayIso()
 </script>
 
 <template>
@@ -125,7 +154,6 @@ const display = computed(() => formatJalaliFa(model.value))
     </template>
 
     <VCard class="jalali-picker">
-      <!-- ردیف ۱: ماه + سال -->
       <div class="jalali-picker__selectors">
         <VSelect
           :model-value="view.jm"
@@ -147,7 +175,6 @@ const display = computed(() => formatJalaliFa(model.value))
         />
       </div>
 
-      <!-- ردیف ۲: فلش‌ها -->
       <div class="jalali-picker__nav">
         <VBtn
           icon
@@ -181,6 +208,7 @@ const display = computed(() => formatJalaliFa(model.value))
           v-for="w in weekDays"
           :key="w"
           class="jalali-picker__cell jalali-picker__cell--head"
+          :class="{ 'jalali-picker__cell--friday-head': w === 'ج' }"
         >{{ w }}</span>
       </div>
 
@@ -193,6 +221,9 @@ const display = computed(() => formatJalaliFa(model.value))
           :class="{
             'jalali-picker__cell--empty': !c.day,
             'jalali-picker__cell--active': c.iso && c.iso === model,
+            'jalali-picker__cell--today': c.iso === todayIsoStr && c.iso !== model,
+            'jalali-picker__cell--friday': c.friday && !c.holiday,
+            'jalali-picker__cell--holiday': c.holiday,
           }"
           :disabled="!c.day"
           @click="pick(c.iso)"
@@ -214,7 +245,7 @@ const display = computed(() => formatJalaliFa(model.value))
           size="x-small"
           color="primary"
           variant="tonal"
-          @click="pick(todayIso())"
+          @click="pickToday"
         >
           امروز
         </VBtn>
@@ -245,10 +276,6 @@ const display = computed(() => formatJalaliFa(model.value))
 .jalali-picker__month :deep(.v-field),
 .jalali-picker__year :deep(.v-field) {
   font-size: 0.8rem;
-}
-
-.jalali-picker__year :deep(.v-field__input) {
-  letter-spacing: 0;
 }
 
 .jalali-picker__nav {
@@ -291,6 +318,12 @@ const display = computed(() => formatJalaliFa(model.value))
   min-height: 22px;
 }
 
+.jalali-picker__cell--friday-head {
+  color: rgb(var(--v-theme-error));
+  opacity: 1;
+  font-weight: 600;
+}
+
 .jalali-picker__cell--empty {
   cursor: default;
   pointer-events: none;
@@ -300,10 +333,25 @@ const display = computed(() => formatJalaliFa(model.value))
   background: rgba(var(--v-theme-primary), 0.08);
 }
 
+.jalali-picker__cell--friday {
+  color: rgb(var(--v-theme-error));
+}
+
+.jalali-picker__cell--holiday {
+  color: rgb(var(--v-theme-error));
+  font-weight: 600;
+  background: rgba(var(--v-theme-error), 0.08);
+}
+
+.jalali-picker__cell--today {
+  box-shadow: inset 0 0 0 1.5px rgb(var(--v-theme-primary));
+}
+
 .jalali-picker__cell--active {
   background: rgb(var(--v-theme-primary)) !important;
   color: rgb(var(--v-theme-on-primary)) !important;
   font-weight: 600;
+  box-shadow: none;
 }
 
 .jalali-picker__footer {
