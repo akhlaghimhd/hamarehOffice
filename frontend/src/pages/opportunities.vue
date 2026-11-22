@@ -12,7 +12,7 @@ import {
 } from '@/utils/api'
 import { formatJalaliFa, toFaDigits } from '@/utils/fa'
 import { rules } from '@/utils/formRules'
-import girlWithLaptop from '@images/illustrations/girl-with-laptop.png'
+import trophy from '@images/misc/trophy.png'
 
 const router = useRouter()
 const { success, error: notifyError } = useNotify()
@@ -254,7 +254,7 @@ onMounted(load)
       title="ثبت سریع فرصت"
       subtitle="حداقل اطلاعات برای شروع پیگیری"
       :dirty="dirty"
-      :illustration="girlWithLaptop"
+      :illustration="trophy"
       :width="520"
     >
       <VForm
@@ -282,38 +282,26 @@ onMounted(load)
               persistent-hint
             />
           </VCol>
-          <VCol
-            cols="12"
-            sm="6"
-          >
+          <VCol cols="12" sm="6">
             <VTextField
               v-model="form.contact_name"
               label="فرد تماس"
             />
           </VCol>
-          <VCol
-            cols="12"
-            sm="6"
-          >
+          <VCol cols="12" sm="6">
             <PhoneField
               v-model="form.contact_mobile"
               label="موبایل"
               mobile
             />
           </VCol>
-          <VCol
-            cols="12"
-            sm="6"
-          >
+          <VCol cols="12" sm="6">
             <PhoneField
               v-model="form.contact_phone"
               label="تلفن"
             />
           </VCol>
-          <VCol
-            cols="12"
-            sm="6"
-          >
+          <VCol cols="12" sm="6">
             <JalaliDateField
               v-model="form.next_step_due_on"
               label="تاریخ گام بعدی"
