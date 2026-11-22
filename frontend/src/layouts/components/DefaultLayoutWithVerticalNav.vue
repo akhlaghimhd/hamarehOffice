@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import NavItems from '@/layouts/components/NavItems.vue'
+import MobileBottomNav from '@/layouts/components/MobileBottomNav.vue'
 import logo from '@images/logo.svg?raw'
 import VerticalNavLayout from '@layouts/components/VerticalNavLayout.vue'
 import Footer from '@/layouts/components/Footer.vue'
@@ -9,14 +10,20 @@ import CompanySwitcher from '@/layouts/components/CompanySwitcher.vue'
 </script>
 
 <template>
-  <VerticalNavLayout>
+  <VerticalNavLayout class="layout-with-mobile-nav">
     <template #navbar="{ toggleVerticalOverlayNavActive }">
       <div class="d-flex h-100 align-center">
-        <IconBtn class="ms-n3 d-lg-none" @click="toggleVerticalOverlayNavActive(true)">
+        <IconBtn
+          class="ms-n3 d-lg-none"
+          @click="toggleVerticalOverlayNavActive(true)"
+        >
           <VIcon icon="ri-menu-line" />
         </IconBtn>
 
-        <div class="d-flex align-center cursor-pointer" style="user-select: none;">
+        <div
+          class="d-flex align-center cursor-pointer"
+          style="user-select: none;"
+        >
           <IconBtn>
             <VIcon icon="ri-search-line" />
           </IconBtn>
@@ -39,14 +46,25 @@ import CompanySwitcher from '@/layouts/components/CompanySwitcher.vue'
     </template>
 
     <template #vertical-nav-header="{ toggleIsOverlayNavActive }">
-      <RouterLink to="/dashboard" class="app-logo app-title-wrapper">
-        <div class="d-flex" v-html="logo" />
+      <RouterLink
+        to="/dashboard"
+        class="app-logo app-title-wrapper"
+      >
+        <div
+          class="d-flex"
+          v-html="logo"
+        />
         <div class="d-flex flex-column">
-          <h1 class="font-weight-medium leading-normal text-xl mb-0">هماره</h1>
+          <h1 class="font-weight-medium leading-normal text-xl mb-0">
+            هماره
+          </h1>
           <span class="text-caption text-disabled d-none d-sm-inline">هوشمند آرمان هماره</span>
         </div>
       </RouterLink>
-      <IconBtn class="d-block d-lg-none" @click="toggleIsOverlayNavActive(false)">
+      <IconBtn
+        class="d-block d-lg-none"
+        @click="toggleIsOverlayNavActive(false)"
+      >
         <VIcon icon="ri-close-line" />
       </IconBtn>
     </template>
@@ -55,12 +73,16 @@ import CompanySwitcher from '@/layouts/components/CompanySwitcher.vue'
       <NavItems />
     </template>
 
-    <slot />
+    <div class="page-content-mobile-pad">
+      <slot />
+    </div>
 
     <template #footer>
-      <Footer />
+      <Footer class="d-none d-lg-flex" />
     </template>
   </VerticalNavLayout>
+
+  <MobileBottomNav />
 </template>
 
 <style lang="scss" scoped>
@@ -72,9 +94,16 @@ import CompanySwitcher from '@/layouts/components/CompanySwitcher.vue'
   padding-block: 0.125rem;
   padding-inline: 0.25rem;
 }
+
 .app-logo {
   display: flex;
   align-items: center;
   column-gap: 0.75rem;
+}
+
+.page-content-mobile-pad {
+  @media (max-width: 1279px) {
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  }
 }
 </style>
