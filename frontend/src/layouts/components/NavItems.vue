@@ -20,9 +20,9 @@ import VerticalNavLink from '@layouts/components/VerticalNavLink.vue'
 
   <VerticalNavLink
     :item="{
-      title: 'مشتریان',
+      title: 'طرف‌های تجاری',
       icon: 'ri-user-star-line',
-      to: '/dashboard',
+      to: '/parties',
     }"
   />
   <VerticalNavLink
@@ -55,13 +55,6 @@ import VerticalNavLink from '@layouts/components/VerticalNavLink.vue'
 
   <VerticalNavLink
     :item="{
-      title: 'شرکت',
-      icon: 'ri-building-4-line',
-      to: '/dashboard',
-    }"
-  />
-  <VerticalNavLink
-    :item="{
       title: 'تنظیمات حساب',
       icon: 'ri-user-settings-line',
       to: '/account-settings',
@@ -86,13 +79,6 @@ import VerticalNavLink from '@layouts/components/VerticalNavLink.vue'
       title: 'جداول',
       icon: 'ri-table-line',
       to: '/tables',
-    }"
-  />
-  <VerticalNavLink
-    :item="{
-      title: 'فرم‌ها',
-      icon: 'ri-layout-4-line',
-      to: '/form-layouts',
     }"
   />
 </template>
