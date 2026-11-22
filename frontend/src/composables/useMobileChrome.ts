@@ -12,6 +12,10 @@ export function useMobileChrome() {
     openOverlays.value = Math.max(0, openOverlays.value - 1)
   }
 
+  function reset() {
+    openOverlays.value = 0
+  }
+
   const bottomNavVisible = computed(() => openOverlays.value === 0)
 
   return {
@@ -19,5 +23,6 @@ export function useMobileChrome() {
     bottomNavVisible,
     lock,
     unlock,
+    reset,
   }
 }
