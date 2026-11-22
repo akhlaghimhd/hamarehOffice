@@ -3,9 +3,12 @@
 namespace Database\Seeders;
 
 use App\Models\Company;
+use App\Models\CompanyPartyRole;
 use App\Models\CompanySetting;
 use App\Models\CompanyUser;
 use App\Models\NumberSequence;
+use App\Models\OpportunityStage;
+use App\Models\Party;
 use App\Models\Permission;
 use App\Models\PlatformOwner;
 use App\Models\Role;
@@ -76,19 +79,61 @@ class FoundationSeeder extends Seeder
 
             if ($membership && Schema::hasTable('company_user_role')) {
                 DB::table('company_user_role')->updateOrInsert(
-                    [
-                        'company_user_id' => $membership->id,
-                        'role_id' => $role->id,
-                    ],
+                    ['company_user_id' => $membership->id, 'role_id' => $role->id],
                     ['created_at' => now(), 'updated_at' => now()],
                 );
             }
         }
 
-        // مالک پلتفرم = حساب هماره (بدون UI تنظیمات مالک)
         if (Schema::hasTable('platform_owners')) {
             PlatformOwner::query()->updateOrCreate(
                 ['user_id' => $user->id],
+                ['is_active' => true],
+            );
+        }
+
+        // مراحل فرصت پیش‌فرض
+        if (Schema::hasTable('opportunity_stages')) {
+            $stages = [
+                ['code' => 'lead', 'name' => 'سرنخ', 'sort_order' => 10],
+                ['code' => 'qualified', 'name' => 'واجد شرایط', 'sort_order' => 20],
+                ['code' => 'proposal', 'name' => 'پیشنهاد', 'sort_order' => 30],
+                ['code' => 'negotiation', 'name' => 'مذاکره', 'sort_order' => 40],
+                ['code' => 'won', 'name' => 'برنده', 'sort_order' => 50, 'is_won' => true],
+                ['code' => 'lost', 'name' => 'باخته', 'sort_order' => 60, 'is_lost' => true],
+            ];
+
+            foreach ($stages as $stage) {
+                OpportunityStage::query()->updateOrCreate(
+                    ['company_id' => $company->id, 'code' => $stage['code']],
+                    [
+                        'name' => $stage['name'],
+                        'sort_order' => $stage['sort_order'],
+                        'is_won' => $stage['is_won'] ?? false,
+                        'is_lost' => $stage['is_lost'] ?? false,
+                        'is_active' => true,
+                    ],
+                );
+            }
+        }
+
+        // طرف تجاری نمونه
+        if (Schema::hasTable('parties')) {
+            $party = Party::query()->updateOrCreate(
+                ['name' => 'شرکت نمونه مشتری', 'type' => 'organization'],
+                [
+                    'phone' => '02100000000',
+                    'email' => 'customer@example.com',
+                    'is_active' => true,
+                ],
+            );
+
+            CompanyPartyRole::query()->updateOrCreate(
+                [
+                    'company_id' => $company->id,
+                    'party_id' => $party->id,
+                    'role' => 'customer',
+                ],
                 ['is_active' => true],
             );
         }

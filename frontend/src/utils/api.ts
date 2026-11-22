@@ -19,9 +19,8 @@ export function getToken(): string | null {
 export function setAuth(token: string, user: unknown, companies?: CompanyOption[]) {
   localStorage.setItem(TOKEN_KEY, token)
   localStorage.setItem(USER_KEY, JSON.stringify(user))
-  if (companies && companies.length) {
+  if (companies && companies.length)
     setCompanies(companies)
-  }
 }
 
 export function setCompanies(companies: CompanyOption[]) {
@@ -121,6 +120,17 @@ export async function fetchParties() {
 
 export async function createParty(payload: Record<string, unknown>) {
   return api<{ data: any }>('/api/parties', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function fetchOpportunities() {
+  return api<{ data: any[] }>('/api/opportunities')
+}
+
+export async function createOpportunity(payload: Record<string, unknown>) {
+  return api<{ data: any }>('/api/opportunities', {
     method: 'POST',
     body: JSON.stringify(payload),
   })

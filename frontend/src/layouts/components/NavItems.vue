@@ -12,11 +12,7 @@ import VerticalNavLink from '@layouts/components/VerticalNavLink.vue'
     }"
   />
 
-  <VerticalNavSectionTitle
-    :item="{
-      heading: 'عملیات',
-    }"
-  />
+  <VerticalNavSectionTitle :item="{ heading: 'عملیات' }" />
 
   <VerticalNavLink
     :item="{
@@ -29,7 +25,7 @@ import VerticalNavLink from '@layouts/components/VerticalNavLink.vue'
     :item="{
       title: 'فرصت‌ها',
       icon: 'ri-funds-box-line',
-      to: '/dashboard',
+      to: '/opportunities',
     }"
   />
   <VerticalNavLink
@@ -47,38 +43,13 @@ import VerticalNavLink from '@layouts/components/VerticalNavLink.vue'
     }"
   />
 
-  <VerticalNavSectionTitle
-    :item="{
-      heading: 'سازمان',
-    }"
-  />
+  <VerticalNavSectionTitle :item="{ heading: 'سازمان' }" />
 
   <VerticalNavLink
     :item="{
       title: 'تنظیمات حساب',
       icon: 'ri-user-settings-line',
       to: '/account-settings',
-    }"
-  />
-
-  <VerticalNavSectionTitle
-    :item="{
-      heading: 'نمونه UI',
-    }"
-  />
-
-  <VerticalNavLink
-    :item="{
-      title: 'کارت‌ها',
-      icon: 'ri-bar-chart-box-line',
-      to: '/cards',
-    }"
-  />
-  <VerticalNavLink
-    :item="{
-      title: 'جداول',
-      icon: 'ri-table-line',
-      to: '/tables',
     }"
   />
 </template>
