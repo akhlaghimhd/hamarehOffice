@@ -20,14 +20,12 @@ const { mobile } = useDisplay()
 const { lock, unlock } = useMobileChrome()
 const confirmOpen = ref(false)
 
-const drawerWidth = computed(() => (mobile.value ? '100%' : props.width))
-
 watch(
   () => props.modelValue,
-  (open, wasOpen) => {
-    if (open && !wasOpen)
+  (open, was) => {
+    if (open && !was)
       lock()
-    if (!open && wasOpen)
+    if (!open && was)
       unlock()
   },
 )
@@ -37,7 +35,7 @@ onBeforeUnmount(() => {
     unlock()
 })
 
-function requestClose() {
+function tryClose() {
   if (props.dirty) {
     confirmOpen.value = true
     return
@@ -50,26 +48,28 @@ function forceClose() {
   emit('update:modelValue', false)
 }
 
-function onDrawerUpdate(v: boolean) {
-  if (!v)
-    requestClose()
-  else
+/** فقط وقتی واقعاً باید بسته شود model را false کن */
+function onOverlayUpdate(v: boolean) {
+  if (v) {
     emit('update:modelValue', true)
+    return
+  }
+  tryClose()
 }
 </script>
 
 <template>
-  <VNavigationDrawer
+  <!-- موبایل: دیالوگ تمام‌صفحه (قابل اعتمادتر از NavigationDrawer) -->
+  <VDialog
+    v-if="mobile"
     :model-value="modelValue"
-    location="right"
-    temporary
-    :width="drawerWidth"
+    fullscreen
+    transition="dialog-bottom-transition"
     :scrim="true"
-    class="form-drawer"
-    @update:model-value="onDrawerUpdate"
+    @update:model-value="onOverlayUpdate"
   >
-    <div class="form-drawer__inner d-flex flex-column h-100">
-      <div class="form-drawer__header pa-4 d-flex align-start justify-space-between gap-2">
+    <VCard class="form-sheet d-flex flex-column h-100 rounded-0">
+      <div class="form-sheet__header pa-4 d-flex align-start justify-space-between gap-2">
         <div class="d-flex align-start gap-3">
           <VImg
             v-if="illustration"
@@ -94,19 +94,73 @@ function onDrawerUpdate(v: boolean) {
           icon
           variant="text"
           size="small"
-          @click="requestClose"
+          @click="tryClose"
         >
           <VIcon icon="ri-close-line" />
         </VBtn>
       </div>
 
-      <div class="form-drawer__body flex-grow-1 overflow-y-auto pa-4">
+      <div class="form-sheet__body flex-grow-1 overflow-y-auto pa-4">
         <slot />
       </div>
 
       <div
         v-if="$slots.actions"
-        class="form-drawer__actions pa-4 d-flex flex-wrap justify-end gap-2"
+        class="form-sheet__actions pa-4 d-flex flex-wrap justify-end gap-2"
+      >
+        <slot name="actions" />
+      </div>
+    </VCard>
+  </VDialog>
+
+  <!-- دسکتاپ: دراور راست -->
+  <VNavigationDrawer
+    v-else
+    :model-value="modelValue"
+    location="right"
+    temporary
+    :width="width"
+    @update:model-value="onOverlayUpdate"
+  >
+    <div class="form-sheet d-flex flex-column h-100">
+      <div class="form-sheet__header pa-4 d-flex align-start justify-space-between gap-2">
+        <div class="d-flex align-start gap-3">
+          <VImg
+            v-if="illustration"
+            :src="illustration"
+            width="56"
+            height="56"
+            class="flex-shrink-0"
+          />
+          <div>
+            <div class="text-h6">
+              {{ title }}
+            </div>
+            <div
+              v-if="subtitle"
+              class="text-body-2 text-medium-emphasis"
+            >
+              {{ subtitle }}
+            </div>
+          </div>
+        </div>
+        <VBtn
+          icon
+          variant="text"
+          size="small"
+          @click="tryClose"
+        >
+          <VIcon icon="ri-close-line" />
+        </VBtn>
+      </div>
+
+      <div class="form-sheet__body flex-grow-1 overflow-y-auto pa-4">
+        <slot />
+      </div>
+
+      <div
+        v-if="$slots.actions"
+        class="form-sheet__actions pa-4 d-flex flex-wrap justify-end gap-2"
       >
         <slot name="actions" />
       </div>
@@ -116,6 +170,7 @@ function onDrawerUpdate(v: boolean) {
   <VDialog
     v-model="confirmOpen"
     max-width="400"
+    persistent
   >
     <VCard title="تغییرات ذخیره نشده">
       <VCardText>
@@ -141,29 +196,18 @@ function onDrawerUpdate(v: boolean) {
 </template>
 
 <style scoped>
-.form-drawer :deep(.v-navigation-drawer__content) {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
-.form-drawer__inner {
-  min-height: 100%;
-}
-
-.form-drawer__header {
+.form-sheet__header {
   border-block-end: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
   flex-shrink: 0;
 }
 
-.form-drawer__actions {
+.form-sheet__actions {
   border-block-start: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
   flex-shrink: 0;
   background: rgb(var(--v-theme-surface));
   position: sticky;
   bottom: 0;
   z-index: 2;
-  /* فاصله از home indicator موبایل */
   padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)) !important;
 }
 </style>
