@@ -97,6 +97,8 @@ class OpportunityService
                 'main_objection' => $data['main_objection'] ?? null,
                 'stage_id' => $stageId,
                 'status' => $data['status'] ?? 'active',
+                'lost_reason' => $data['lost_reason'] ?? null,
+                'result_note' => $data['result_note'] ?? null,
                 'owner_user_id' => $userId,
                 'assigned_to_user_id' => $data['assignee_user_id'] ?? $userId,
                 'next_step' => $data['next_step'],
