@@ -52,4 +52,42 @@ import VerticalNavLink from '@layouts/components/VerticalNavLink.vue'
       to: '/account-settings',
     }"
   />
+
+  <!-- موقت: پس از تثبیت UI حذف شود -->
+  <VerticalNavSectionTitle :item="{ heading: 'الگوهای UI (موقت)' }" />
+  <VerticalNavLink
+    :item="{
+      title: 'فهرست الگوها',
+      icon: 'ri-palette-line',
+      to: '/ui-lab',
+    }"
+  />
+  <VerticalNavLink
+    :item="{
+      title: 'دکمه‌ها',
+      icon: 'ri-checkbox-blank-line',
+      to: '/ui-lab/buttons',
+    }"
+  />
+  <VerticalNavLink
+    :item="{
+      title: 'تب‌ها',
+      icon: 'ri-layout-left-line',
+      to: '/ui-lab/tabs',
+    }"
+  />
+  <VerticalNavLink
+    :item="{
+      title: 'فرم Text field',
+      icon: 'ri-input-field',
+      to: '/ui-lab/textfields',
+    }"
+  />
+  <VerticalNavLink
+    :item="{
+      title: 'دیالوگ',
+      icon: 'ri-window-line',
+      to: '/ui-lab/dialogs',
+    }"
+  />
 </template>
