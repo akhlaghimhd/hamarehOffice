@@ -2,30 +2,31 @@
 
 **به‌روزرسانی:** 2026-11-22
 
+## برند
+- نام کوتاه: **هماره**
+- نام کامل: **هوشمند آرمان هماره**
+
 ## استک مصوب UI
 - **Materio Free + Vue 3 + Vuetify 3 + Vue Router**
-- Laravel به‌عنوان backend/API
-- **لغو مسیر قبلی:** Inertia + Tailwind به‌عنوان سیستم اصلی + shadcn-vue
-- Filament ممنوع
+- Laravel backend/API + Sanctum token
+- Filament / Inertia / shadcn به‌عنوان سیستم اصلی ممنوع
 
 ## انجام‌شده
-- مخزن و اسناد پایه
-- اسکلت اولیه Laravel (بعداً UI آن کنار گذاشته می‌شود)
-- Docker MariaDB لوکال برای توسعه
-- تصمیم و کلون عملی Materio Free روی ماشین توسعه
-- مصوب مهاجرت کامل به Materio Free و حذف وابستگی UI قبلی
-
-## در حال انجام
-- پاک‌سازی منو/بنر Pro از Materio Free
-- انتقال frontend به ساختار `frontend/` و اتصال به Laravel
-- حذف پکیج‌های Inertia/Breeze UI/shadcn از مسیر اصلی
+- مخزن، اسناد، Docker MariaDB
+- Materio Free در `frontend/` + حذف Pro teaser
+- Sanctum login/logout/user
+- RTL پایه + فونت محلی Vazir
+- برندینگ پوسته (هماره)
+- **M00:** companies, number_sequences, attachments, audit_events, company_settings + مدل‌ها + FoundationSeeder
+- **M01 (اسکلت):** company_user, roles, permissions, company_user_role, platform_owners
+- CompanyContext + middleware `company.context`
+- API: `/api/companies`, `/api/companies/switch`؛ login شامل لیست شرکت‌ها
 
 ## بعدی
-- Sanctum/SPA auth
-- منوی دامنه هم‌ره (بدون آیتم تبلیغ Pro)
-- M00 foundation روی API + صفحات Materio
-- bottom navigation موبایل در صورت نیاز محصول
+- نمایش انتخاب شرکت در UI Materio
+- Permission resolver واحد (بدون wildcard خام admin)
+- M02 تکمیل فیلدهای شرکت / تنظیمات
+- M03 Party/Customer به‌عنوان اولین vertical slice دامنه قابل‌مشاهده
 
 ## ریسک
-- ادغام ناتمام = دو استک هم‌زمان؛ باید طبق `12_MATERIO_STACK_MIGRATION.md` یکی شود.
-- کپی تصادفی دارایی Pro ممنوع.
+- نقش admin هنوز policy کامل ندارد؛ قبل از صفحات عملیاتی باید Enforce سرور تکمیل شود.
