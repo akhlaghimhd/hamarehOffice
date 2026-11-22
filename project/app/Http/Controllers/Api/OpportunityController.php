@@ -33,7 +33,8 @@ class OpportunityController extends Controller
             $q->where(function ($qq) use ($search) {
                 $qq->where('organization_name', 'like', "%{$search}%")
                     ->orWhere('code', 'like', "%{$search}%")
-                    ->orWhere('contact_name', 'like', "%{$search}%");
+                    ->orWhere('contact_name', 'like', "%{$search}%")
+                    ->orWhere('product_name', 'like', "%{$search}%");
             });
         }
 
@@ -48,6 +49,8 @@ class OpportunityController extends Controller
 
         $data = $request->validate([
             'organization_name' => ['required', 'string', 'max:255'],
+            'products' => ['nullable', 'array'],
+            'products.*' => ['string', 'max:255'],
             'product_name' => ['nullable', 'string', 'max:255'],
             'contact_name' => ['nullable', 'string', 'max:255'],
             'contact_mobile' => ['nullable', 'string', 'max:32'],
@@ -128,11 +131,17 @@ class OpportunityController extends Controller
 
     private function listItem(Opportunity $o): array
     {
+        $products = is_array($o->products) ? $o->products : [];
+        if (empty($products) && $o->product_name) {
+            $products = [$o->product_name];
+        }
+
         return [
             'id' => $o->id,
             'code' => $o->code,
             'organization_name' => $o->organization_name,
             'product_name' => $o->product_name,
+            'products' => $products,
             'status' => $o->status,
             'next_step' => $o->next_step,
             'next_step_due_on' => $o->next_step_due_on?->format('Y-m-d'),
