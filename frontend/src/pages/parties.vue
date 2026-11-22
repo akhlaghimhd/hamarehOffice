@@ -1,13 +1,22 @@
 <script setup lang="ts">
+import FormDrawer from '@/components/forms/FormDrawer.vue'
+import PhoneField from '@/components/forms/PhoneField.vue'
+import { useNotify } from '@/composables/useNotify'
 import { createParty, fetchParties, getCompany } from '@/utils/api'
+import { toFaDigits } from '@/utils/fa'
+import { rules } from '@/utils/formRules'
+import trophy from '@images/misc/trophy.png'
+
+const { success, error: notifyError } = useNotify()
 
 const items = ref<any[]>([])
 const loading = ref(false)
 const saving = ref(false)
-const errorMessage = ref('')
-const dialog = ref(false)
+const drawerOpen = ref(false)
+const formRef = ref()
+const dirty = ref(false)
 
-const form = ref({
+const emptyForm = () => ({
   type: 'organization',
   name: '',
   role: 'customer',
@@ -15,20 +24,28 @@ const form = ref({
   email: '',
 })
 
+const form = ref(emptyForm())
+watch(form, () => { dirty.value = true }, { deep: true })
+
+function openCreate() {
+  form.value = emptyForm()
+  dirty.value = false
+  drawerOpen.value = true
+}
+
 async function load() {
   if (!getCompany()?.id) {
-    errorMessage.value = 'شرکت جاری مشخص نشده است. از دکمه شرکت در هدر یک شرکت انتخاب کنید.'
+    notifyError('شرکت جاری مشخص نشده است. از هدر یک شرکت انتخاب کنید.')
     return
   }
 
   loading.value = true
-  errorMessage.value = ''
   try {
     const res = await fetchParties()
     items.value = res.data || []
   }
   catch (e: any) {
-    errorMessage.value = e?.message || 'خطا در دریافت'
+    notifyError(e?.message || 'خطا در دریافت')
   }
   finally {
     loading.value = false
@@ -36,20 +53,24 @@ async function load() {
 }
 
 async function save() {
+  const { valid } = await formRef.value?.validate?.() ?? { valid: true }
+  if (!valid)
+    return
+
   if (!getCompany()?.id) {
-    errorMessage.value = 'شرکت جاری مشخص نشده است.'
+    notifyError('شرکت جاری مشخص نشده است.')
     return
   }
   saving.value = true
-  errorMessage.value = ''
   try {
     await createParty({ ...form.value })
-    dialog.value = false
-    form.value = { type: 'organization', name: '', role: 'customer', phone: '', email: '' }
+    dirty.value = false
+    drawerOpen.value = false
+    success('طرف تجاری ثبت شد')
     await load()
   }
   catch (e: any) {
-    errorMessage.value = e?.message || 'ثبت ناموفق'
+    notifyError(e?.message || 'ثبت ناموفق')
   }
   finally {
     saving.value = false
@@ -71,15 +92,21 @@ const roleLabel: Record<string, string> = {
   <div>
     <div class="d-flex flex-wrap align-center justify-space-between gap-4 mb-6">
       <div>
-        <h4 class="text-h4 mb-1">طرف‌های تجاری</h4>
-        <p class="text-body-1 text-medium-emphasis mb-0">مشتری، تأمین‌کننده، پیمانکار و سایر نقش‌ها</p>
+        <h4 class="text-h4 mb-1">
+          طرف‌های تجاری
+        </h4>
+        <p class="text-body-1 text-medium-emphasis mb-0">
+          مشتری، تأمین‌کننده، پیمانکار و سایر نقش‌ها · {{ toFaDigits(items.length) }} مورد
+        </p>
       </div>
-      <VBtn color="primary" prepend-icon="ri-user-add-line" @click="dialog = true">
+      <VBtn
+        color="primary"
+        prepend-icon="ri-user-add-line"
+        @click="openCreate"
+      >
         طرف تجاری جدید
       </VBtn>
     </div>
-
-    <VAlert v-if="errorMessage" type="error" variant="tonal" class="mb-4">{{ errorMessage }}</VAlert>
 
     <VCard>
       <VDataTable
@@ -98,9 +125,16 @@ const roleLabel: Record<string, string> = {
           {{ item.party?.type === 'person' ? 'حقیقی' : 'حقوقی' }}
         </template>
         <template #item.role="{ item }">
-          <VChip size="small" color="primary" variant="tonal">
+          <VChip
+            size="small"
+            color="primary"
+            variant="tonal"
+          >
             {{ roleLabel[item.role] || item.role }}
           </VChip>
+        </template>
+        <template #item.party.phone="{ item }">
+          {{ toFaDigits(item.party?.phone || '—') }}
         </template>
         <template #no-data>
           داده‌ای نیست
@@ -109,50 +143,81 @@ const roleLabel: Record<string, string> = {
       </VDataTable>
     </VCard>
 
-    <VDialog v-model="dialog" max-width="560">
-      <VCard title="ثبت طرف تجاری">
-        <VCardText>
-          <VRow>
-            <VCol cols="12" sm="6">
-              <VSelect
-                v-model="form.type"
-                :items="[
-                  { title: 'حقوقی', value: 'organization' },
-                  { title: 'حقیقی', value: 'person' },
-                ]"
-                label="نوع"
-              />
-            </VCol>
-            <VCol cols="12" sm="6">
-              <VSelect
-                v-model="form.role"
-                :items="[
-                  { title: 'مشتری', value: 'customer' },
-                  { title: 'تأمین‌کننده', value: 'supplier' },
-                  { title: 'پیمانکار', value: 'contractor' },
-                  { title: 'شریک', value: 'partner' },
-                  { title: 'نماینده', value: 'sales_representative' },
-                ]"
-                label="نقش تجاری"
-              />
-            </VCol>
-            <VCol cols="12">
-              <VTextField v-model="form.name" label="نام" />
-            </VCol>
-            <VCol cols="12" sm="6">
-              <VTextField v-model="form.phone" label="تلفن" />
-            </VCol>
-            <VCol cols="12" sm="6">
-              <VTextField v-model="form.email" label="ایمیل" />
-            </VCol>
-          </VRow>
-        </VCardText>
-        <VCardActions>
-          <VSpacer />
-          <VBtn variant="text" @click="dialog = false">انصراف</VBtn>
-          <VBtn color="primary" :loading="saving" @click="save">ثبت</VBtn>
-        </VCardActions>
-      </VCard>
-    </VDialog>
+    <FormDrawer
+      v-model="drawerOpen"
+      title="ثبت طرف تجاری"
+      subtitle="مشتری، تأمین‌کننده یا نقش‌های دیگر"
+      :dirty="dirty"
+      :illustration="trophy"
+      :width="480"
+    >
+      <VForm
+        ref="formRef"
+        @submit.prevent="save"
+      >
+        <VRow>
+          <VCol cols="12" sm="6">
+            <VSelect
+              v-model="form.type"
+              :items="[
+                { title: 'حقوقی', value: 'organization' },
+                { title: 'حقیقی', value: 'person' },
+              ]"
+              label="نوع"
+            />
+          </VCol>
+          <VCol cols="12" sm="6">
+            <VSelect
+              v-model="form.role"
+              :items="[
+                { title: 'مشتری', value: 'customer' },
+                { title: 'تأمین‌کننده', value: 'supplier' },
+                { title: 'پیمانکار', value: 'contractor' },
+                { title: 'شریک', value: 'partner' },
+                { title: 'نماینده', value: 'sales_representative' },
+              ]"
+              label="نقش تجاری"
+            />
+          </VCol>
+          <VCol cols="12">
+            <VTextField
+              v-model="form.name"
+              label="نام"
+              :rules="[rules.required('نام')]"
+            />
+          </VCol>
+          <VCol cols="12" sm="6">
+            <PhoneField
+              v-model="form.phone"
+              label="تلفن"
+            />
+          </VCol>
+          <VCol cols="12" sm="6">
+            <VTextField
+              v-model="form.email"
+              label="ایمیل"
+              type="email"
+            />
+          </VCol>
+        </VRow>
+      </VForm>
+
+      <template #actions>
+        <VBtn
+          variant="text"
+          color="secondary"
+          @click="drawerOpen = false"
+        >
+          انصراف
+        </VBtn>
+        <VBtn
+          color="primary"
+          :loading="saving"
+          @click="save"
+        >
+          ثبت
+        </VBtn>
+      </template>
+    </FormDrawer>
   </div>
 </template>
