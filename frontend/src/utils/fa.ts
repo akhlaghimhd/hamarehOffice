@@ -12,11 +12,31 @@ export function toEnDigits(value: string): string {
     .replace(/[٠-٩]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
 }
 
+/** فقط ارقام لاتین */
+export function onlyDigits(value: string): string {
+  return toEnDigits(value).replace(/\D/g, '')
+}
+
+/** فرمت مبلغ ریال با جداکننده هزارگان + ارقام فارسی */
+export function formatRialFa(value: string | number | null | undefined): string {
+  if (value === null || value === undefined || value === '')
+    return ''
+  const raw = onlyDigits(String(value))
+  if (!raw)
+    return ''
+  const withSep = raw.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+  return toFaDigits(withSep)
+}
+
+/** ورودی مبلغ نمایشی → عدد صحیح ریال (string بدون جداکننده) */
+export function parseRialInput(value: string): string {
+  return onlyDigits(value)
+}
+
 function div(a: number, b: number) {
   return Math.trunc(a / b)
 }
 
-/** Gregorian Y-M-D → [jy, jm, jd] */
 export function gregorianToJalali(gy: number, gm: number, gd: number): [number, number, number] {
   const gdm = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]
   let gy2 = gy - 1600
@@ -52,7 +72,6 @@ export function gregorianToJalali(gy: number, gm: number, gd: number): [number, 
   return [jy, jm, jd]
 }
 
-/** Jalali → Gregorian Y-M-D numbers */
 export function jalaliToGregorian(jy: number, jm: number, jd: number): [number, number, number] {
   jy -= 979
   jm -= 1
@@ -94,7 +113,6 @@ export function jalaliToGregorian(jy: number, jm: number, jd: number): [number, 
   return [gy, gm, gDayNo + 1]
 }
 
-/** ISO/Gregorian date string → نمایش شمسی با ارقام فارسی */
 export function formatJalaliFa(iso: string | null | undefined): string {
   if (!iso)
     return '—'
@@ -106,7 +124,6 @@ export function formatJalaliFa(iso: string | null | undefined): string {
   return toFaDigits(s)
 }
 
-/** ورودی کاربر شمسی (۱۴۰۳/۰۷/۰۱ یا 1403-07-01) → Y-m-d میلادی برای API */
 export function jalaliInputToIso(input: string | null | undefined): string | null {
   if (!input || !String(input).trim())
     return null
@@ -121,4 +138,34 @@ export function jalaliInputToIso(input: string | null | undefined): string | nul
     return null
   const [gy, gm, gd] = jalaliToGregorian(jy, jm, jd)
   return `${gy}-${String(gm).padStart(2, '0')}-${String(gd).padStart(2, '0')}`
+}
+
+export function isoToJalaliParts(iso: string | null | undefined): { jy: number; jm: number; jd: number } | null {
+  if (!iso)
+    return null
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso)
+  if (!m)
+    return null
+  const [jy, jm, jd] = gregorianToJalali(+m[1], +m[2], +m[3])
+  return { jy, jm, jd }
+}
+
+export function jalaliMonthLength(jy: number, jm: number): number {
+  if (jm <= 6)
+    return 31
+  if (jm <= 11)
+    return 30
+  // اسفند: سال کبیسه جلالی تقریبی
+  const breaks = [1, 5, 9, 13, 17, 22, 26, 30]
+  const cy = jy - 979
+  const leap = breaks.includes(cy % 33)
+  return leap ? 30 : 29
+}
+
+export function todayIso(): string {
+  const d = new Date()
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
 }
