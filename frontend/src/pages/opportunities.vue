@@ -24,6 +24,7 @@ const saving = ref(false)
 const drawerOpen = ref(false)
 const formRef = ref()
 const dirty = ref(false)
+const suppressDirty = ref(false)
 
 const filters = ref({
   status: '',
@@ -43,7 +44,10 @@ const emptyForm = () => ({
 
 const form = ref(emptyForm())
 
-watch(form, () => { dirty.value = true }, { deep: true })
+watch(form, () => {
+  if (!suppressDirty.value)
+    dirty.value = true
+}, { deep: true })
 
 const statusItems = [
   { title: 'همه وضعیت‌ها', value: '' },
@@ -72,10 +76,13 @@ function productsOf(item: any): string[] {
   return []
 }
 
-function openCreate() {
+async function openCreate() {
+  suppressDirty.value = true
   form.value = emptyForm()
   dirty.value = false
   drawerOpen.value = true
+  await nextTick()
+  suppressDirty.value = false
 }
 
 function goToOpportunity(_event: unknown, ctx: { item: { id: number } }) {
@@ -169,13 +176,23 @@ onMounted(load)
           همه فرصت‌ها · {{ toFaDigits(items.length) }} مورد
         </p>
       </div>
-      <VBtn
-        color="primary"
-        prepend-icon="ri-add-line"
-        @click="openCreate"
-      >
-        فرصت جدید
-      </VBtn>
+      <div class="d-flex flex-wrap gap-2">
+        <VBtn
+          variant="tonal"
+          color="primary"
+          prepend-icon="ri-file-list-3-line"
+          :to="{ path: '/opportunities/create' }"
+        >
+          ثبت کامل
+        </VBtn>
+        <VBtn
+          color="primary"
+          prepend-icon="ri-add-line"
+          @click="openCreate"
+        >
+          ثبت سریع
+        </VBtn>
+      </div>
     </div>
 
     <VCard class="mb-4">
@@ -214,7 +231,6 @@ onMounted(load)
       </VCardText>
     </VCard>
 
-    <!-- دسکتاپ: جدول -->
     <VCard class="d-none d-md-block">
       <VDataTable
         :headers="[
@@ -249,10 +265,7 @@ onMounted(load)
           </div>
         </template>
         <template #item.status="{ item }">
-          <VChip
-            size="small"
-            variant="tonal"
-          >
+          <VChip size="small" variant="tonal">
             {{ statusLabel[item.status] || item.status }}
           </VChip>
         </template>
@@ -266,18 +279,11 @@ onMounted(load)
       </VDataTable>
     </VCard>
 
-    <!-- موبایل: کارت -->
     <div class="d-md-none">
-      <div
-        v-if="loading"
-        class="text-center py-8 text-medium-emphasis"
-      >
+      <div v-if="loading" class="text-center py-8 text-medium-emphasis">
         در حال بارگذاری...
       </div>
-      <div
-        v-else-if="!items.length"
-        class="text-center py-8 text-medium-emphasis"
-      >
+      <div v-else-if="!items.length" class="text-center py-8 text-medium-emphasis">
         فرصتی ثبت نشده
       </div>
       <VCard
@@ -296,15 +302,10 @@ onMounted(load)
                 {{ toFaDigits(item.code) }}
               </div>
             </div>
-            <VChip
-              size="small"
-              variant="tonal"
-              color="primary"
-            >
+            <VChip size="small" variant="tonal" color="primary">
               {{ statusLabel[item.status] || item.status }}
             </VChip>
           </div>
-
           <div class="d-flex flex-wrap gap-1 mb-2">
             <VChip
               v-for="p in productsOf(item)"
@@ -315,7 +316,6 @@ onMounted(load)
               {{ p }}
             </VChip>
           </div>
-
           <div class="text-body-2 mb-1">
             <span class="text-medium-emphasis">مرحله: </span>{{ item.stage?.name || '—' }}
           </div>
@@ -358,8 +358,6 @@ onMounted(load)
               chips
               closable-chips
               :rules="[rules.required('محصول')]"
-              hint="یک یا چند محصول"
-              persistent-hint
             />
           </VCol>
           <VCol cols="12" sm="6">
@@ -402,7 +400,7 @@ onMounted(load)
         <VBtn
           variant="text"
           color="secondary"
-          @click="drawerOpen = false"
+          @click="dirty = false; drawerOpen = false"
         >
           انصراف
         </VBtn>
