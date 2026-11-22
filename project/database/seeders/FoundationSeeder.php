@@ -7,6 +7,7 @@ use App\Models\CompanySetting;
 use App\Models\NumberSequence;
 use App\Models\User;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 class FoundationSeeder extends Seeder
@@ -59,12 +60,27 @@ class FoundationSeeder extends Seeder
             ],
         );
 
-        User::query()->updateOrCreate(
+        $user = User::query()->updateOrCreate(
             ['email' => 'admin@hamareh.local'],
             [
                 'name' => 'مدیر',
                 'password' => Hash::make('password'),
             ],
         );
+
+        if (Schema::hasTable('company_user')) {
+            DB::table('company_user')->updateOrInsert(
+                [
+                    'company_id' => $company->id,
+                    'user_id' => $user->id,
+                ],
+                [
+                    'is_default' => true,
+                    'is_active' => true,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ],
+            );
+        }
     }
 }

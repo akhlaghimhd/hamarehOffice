@@ -14,22 +14,50 @@ import VerticalNavLink from '@layouts/components/VerticalNavLink.vue'
 
   <VerticalNavSectionTitle
     :item="{
-      heading: 'حساب',
+      heading: 'عملیات',
     }"
   />
 
   <VerticalNavLink
     :item="{
-      title: 'ورود',
-      icon: 'ri-login-box-line',
-      to: '/login',
+      title: 'مشتریان',
+      icon: 'ri-user-star-line',
+      to: '/dashboard',
     }"
   />
   <VerticalNavLink
     :item="{
-      title: 'ثبت‌نام',
-      icon: 'ri-user-add-line',
-      to: '/register',
+      title: 'فرصت‌ها',
+      icon: 'ri-funds-box-line',
+      to: '/dashboard',
+    }"
+  />
+  <VerticalNavLink
+    :item="{
+      title: 'کاتالوگ',
+      icon: 'ri-store-2-line',
+      to: '/dashboard',
+    }"
+  />
+  <VerticalNavLink
+    :item="{
+      title: 'سفارش‌ها',
+      icon: 'ri-shopping-bag-3-line',
+      to: '/dashboard',
+    }"
+  />
+
+  <VerticalNavSectionTitle
+    :item="{
+      heading: 'سازمان',
+    }"
+  />
+
+  <VerticalNavLink
+    :item="{
+      title: 'شرکت',
+      icon: 'ri-building-4-line',
+      to: '/dashboard',
     }"
   />
   <VerticalNavLink
@@ -42,24 +70,10 @@ import VerticalNavLink from '@layouts/components/VerticalNavLink.vue'
 
   <VerticalNavSectionTitle
     :item="{
-      heading: 'نمونه اجزا',
+      heading: 'نمونه UI',
     }"
   />
 
-  <VerticalNavLink
-    :item="{
-      title: 'تایپوگرافی',
-      icon: 'ri-text',
-      to: '/typography',
-    }"
-  />
-  <VerticalNavLink
-    :item="{
-      title: 'آیکون‌ها',
-      icon: 'ri-remixicon-line',
-      to: '/icons',
-    }"
-  />
   <VerticalNavLink
     :item="{
       title: 'کارت‌ها',
@@ -69,16 +83,16 @@ import VerticalNavLink from '@layouts/components/VerticalNavLink.vue'
   />
   <VerticalNavLink
     :item="{
-      title: 'فرم‌ها',
-      icon: 'ri-layout-4-line',
-      to: '/form-layouts',
+      title: 'جداول',
+      icon: 'ri-table-line',
+      to: '/tables',
     }"
   />
   <VerticalNavLink
     :item="{
-      title: 'جداول',
-      icon: 'ri-table-line',
-      to: '/tables',
+      title: 'فرم‌ها',
+      icon: 'ri-layout-4-line',
+      to: '/form-layouts',
     }"
   />
 </template>

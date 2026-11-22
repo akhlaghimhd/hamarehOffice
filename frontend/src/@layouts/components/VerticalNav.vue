@@ -1,6 +1,5 @@
 <script lang="ts" setup>
 import type { Component } from 'vue'
-import { PerfectScrollbar } from 'vue3-perfect-scrollbar'
 import { useDisplay } from 'vuetify'
 import logo from '@images/logo.svg?raw'
 
@@ -18,10 +17,6 @@ const { mdAndDown } = useDisplay()
 
 const refNav = ref()
 
-/*
-  ℹ️ Close overlay side when route is changed
-  Close overlay vertical nav when link is clicked
-*/
 const route = useRoute()
 
 watch(
@@ -39,7 +34,6 @@ const handleNavScroll = (evt: Event) => {
 </script>
 
 <template>
-  <!-- eslint-disable vue/no-v-html -->
   <Component
     :is="props.tag"
     ref="refNav"
@@ -53,11 +47,10 @@ const handleNavScroll = (evt: Event) => {
       },
     ]"
   >
-    <!-- 👉 Header -->
     <div class="nav-header">
       <slot name="nav-header">
         <RouterLink
-          to="/"
+          to="/dashboard"
           class="app-logo app-title-wrapper"
         >
           <div
@@ -65,8 +58,8 @@ const handleNavScroll = (evt: Event) => {
             v-html="logo"
           />
 
-          <h1 class="font-weight-medium leading-normal text-xl text-uppercase">
-            Materio
+          <h1 class="font-weight-medium leading-normal text-xl">
+            هم‌ره
           </h1>
         </RouterLink>
       </slot>
@@ -78,12 +71,9 @@ const handleNavScroll = (evt: Event) => {
       name="nav-items"
       :update-is-vertical-nav-scrolled="updateIsVerticalNavScrolled"
     >
-      <!-- PerfectScrollbar disabled for RTL stability -->
       <div
-        tag="ul"
         class="nav-items"
-        :options="{ wheelPropagation: false }"
-        @ps-scroll-y="handleNavScroll"
+        @scroll="handleNavScroll"
       >
         <slot />
       </div>
@@ -102,7 +92,6 @@ const handleNavScroll = (evt: Event) => {
     font-size: 1.25rem;
     font-weight: 500;
     line-height: 1.75rem;
-    text-transform: uppercase;
   }
 }
 </style>
@@ -111,7 +100,6 @@ const handleNavScroll = (evt: Event) => {
 @use "@configured-variables" as variables;
 @use "@layouts/styles/mixins";
 
-// 👉 Vertical Nav
 .layout-vertical-nav {
   position: fixed;
   z-index: variables.$layout-vertical-nav-z-index;
@@ -148,12 +136,7 @@ const handleNavScroll = (evt: Event) => {
 
   .nav-items {
     block-size: 100%;
-
-    // ℹ️ We no loner needs this overflow styles as perfect scrollbar applies it
-    // overflow-x: hidden;
-
-    // // ℹ️ We used `overflow-y` instead of `overflow` to mitigate overflow x. Revert back if any issue found.
-    // overflow-y: auto;
+    overflow-y: auto;
   }
 
   .nav-item-title {
@@ -163,7 +146,6 @@ const handleNavScroll = (evt: Event) => {
     white-space: nowrap;
   }
 
-  // 👉 Collapsed
   .layout-vertical-nav-collapsed & {
     &:not(.hovered) {
       inline-size: variables.$layout-vertical-nav-collapsed-width;
@@ -171,7 +153,6 @@ const handleNavScroll = (evt: Event) => {
   }
 }
 
-// Small screen vertical nav transition
 @media (max-width: 1279px) {
   .layout-vertical-nav {
     &:not(.visible) {
