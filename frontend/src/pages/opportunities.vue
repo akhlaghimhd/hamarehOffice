@@ -10,7 +10,7 @@ import {
   fetchOpportunityStages,
   getCompany,
 } from '@/utils/api'
-import { formatJalaliFa, toFaDigits } from '@/utils/fa'
+import { formatJalaliFa, toFaDigits, todayIso } from '@/utils/fa'
 import { rules } from '@/utils/formRules'
 import trophy from '@images/misc/trophy.png'
 
@@ -38,7 +38,7 @@ const emptyForm = () => ({
   contact_mobile: '',
   contact_phone: '',
   next_step: '',
-  next_step_due_on: null as string | null,
+  next_step_due_on: todayIso() as string | null,
 })
 
 const form = ref(emptyForm())
