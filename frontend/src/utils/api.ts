@@ -135,3 +135,25 @@ export async function createOpportunity(payload: Record<string, unknown>) {
     body: JSON.stringify(payload),
   })
 }
+
+export async function fetchOpportunity(id: number) {
+  return api<{ data: any }>(`/api/opportunities/${id}`)
+}
+
+export async function updateOpportunityStage(id: number, stageId: number, nextStep?: string) {
+  return api<{ data: any }>(`/api/opportunities/${id}/stage`, {
+    method: 'PATCH',
+    body: JSON.stringify({ stage_id: stageId, next_step: nextStep }),
+  })
+}
+
+export async function createOpportunityActivity(id: number, payload: Record<string, unknown>) {
+  return api<{ data: any }>(`/api/opportunities/${id}/activities`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function fetchOpportunityStages() {
+  return api<{ data: any[] }>('/api/opportunity-stages')
+}

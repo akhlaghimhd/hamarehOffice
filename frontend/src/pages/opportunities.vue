@@ -1,12 +1,25 @@
 <script setup lang="ts">
-import { createOpportunity, fetchOpportunities, fetchParties, getCompany } from '@/utils/api'
+import {
+  createOpportunity,
+  createOpportunityActivity,
+  fetchOpportunities,
+  fetchOpportunityStages,
+  fetchParties,
+  getCompany,
+  updateOpportunityStage,
+} from '@/utils/api'
 
 const items = ref<any[]>([])
 const parties = ref<any[]>([])
+const stages = ref<any[]>([])
 const loading = ref(false)
 const saving = ref(false)
 const errorMessage = ref('')
 const dialog = ref(false)
+const detailDialog = ref(false)
+const selected = ref<any | null>(null)
+const noteBody = ref('')
+const noteSaving = ref(false)
 
 const form = ref({
   title: '',
@@ -24,12 +37,19 @@ async function load() {
   loading.value = true
   errorMessage.value = ''
   try {
-    const [oppRes, partyRes] = await Promise.all([fetchOpportunities(), fetchParties()])
+    const [oppRes, partyRes, stageRes] = await Promise.all([
+      fetchOpportunities(),
+      fetchParties(),
+      fetchOpportunityStages(),
+    ])
     items.value = oppRes.data || []
-    parties.value = (partyRes.data || []).map((r: any) => ({
-      title: r.party?.name,
-      value: r.party?.id,
-    })).filter((p: any) => p.value)
+    parties.value = (partyRes.data || [])
+      .map((r: any) => ({ title: r.party?.name, value: r.party?.id }))
+      .filter((p: any) => p.value)
+    stages.value = (stageRes.data || []).map((s: any) => ({
+      title: s.name,
+      value: s.id,
+    }))
   }
   catch (e: any) {
     errorMessage.value = e?.message || 'خطا در دریافت'
@@ -66,6 +86,42 @@ async function save() {
   }
 }
 
+function openDetail(item: any) {
+  selected.value = { ...item }
+  noteBody.value = ''
+  detailDialog.value = true
+}
+
+async function changeStage(stageId: number) {
+  if (!selected.value) return
+  try {
+    const res = await updateOpportunityStage(selected.value.id, stageId)
+    selected.value = { ...selected.value, ...res.data }
+    await load()
+  }
+  catch (e: any) {
+    errorMessage.value = e?.message || 'تغییر مرحله ناموفق'
+  }
+}
+
+async function addNote() {
+  if (!selected.value || !noteBody.value.trim()) return
+  noteSaving.value = true
+  try {
+    await createOpportunityActivity(selected.value.id, {
+      type: 'note',
+      body: noteBody.value,
+    })
+    noteBody.value = ''
+  }
+  catch (e: any) {
+    errorMessage.value = e?.message || 'ثبت یادداشت ناموفق'
+  }
+  finally {
+    noteSaving.value = false
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -92,6 +148,7 @@ onMounted(load)
           { title: 'مبلغ', key: 'amount' },
           { title: 'گام بعد', key: 'next_step' },
           { title: 'وضعیت', key: 'status' },
+          { title: '', key: 'actions', sortable: false },
         ]"
         :items="items"
         :loading="loading"
@@ -99,6 +156,9 @@ onMounted(load)
       >
         <template #item.status="{ item }">
           <VChip size="small" variant="tonal">{{ item.status }}</VChip>
+        </template>
+        <template #item.actions="{ item }">
+          <VBtn size="small" variant="text" @click="openDetail(item)">جزئیات</VBtn>
         </template>
         <template #no-data>فرصتی ثبت نشده</template>
         <template #bottom />
@@ -130,6 +190,36 @@ onMounted(load)
           <VSpacer />
           <VBtn variant="text" @click="dialog = false">انصراف</VBtn>
           <VBtn color="primary" :loading="saving" @click="save">ثبت</VBtn>
+        </VCardActions>
+      </VCard>
+    </VDialog>
+
+    <VDialog v-model="detailDialog" max-width="640">
+      <VCard v-if="selected" :title="selected.title">
+        <VCardText>
+          <div class="mb-4">
+            <div class="text-body-2 text-medium-emphasis">طرف تجاری</div>
+            <div class="text-h6">{{ selected.party?.name || '—' }}</div>
+          </div>
+
+          <VSelect
+            :model-value="selected.stage?.id"
+            :items="stages"
+            label="مرحله"
+            class="mb-4"
+            @update:model-value="changeStage"
+          />
+
+          <VTextField
+            v-model="noteBody"
+            label="یادداشت فعالیت"
+            class="mb-2"
+          />
+          <VBtn size="small" :loading="noteSaving" @click="addNote">ثبت یادداشت</VBtn>
+        </VCardText>
+        <VCardActions>
+          <VSpacer />
+          <VBtn variant="text" @click="detailDialog = false">بستن</VBtn>
         </VCardActions>
       </VCard>
     </VDialog>

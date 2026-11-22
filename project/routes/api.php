@@ -22,6 +22,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('/opportunities', [OpportunityController::class, 'index']);
         Route::post('/opportunities', [OpportunityController::class, 'store']);
+        Route::get('/opportunities/{id}', [OpportunityController::class, 'show']);
+        Route::patch('/opportunities/{id}/stage', [OpportunityController::class, 'updateStage']);
+        Route::post('/opportunities/{id}/activities', [OpportunityController::class, 'storeActivity']);
         Route::get('/opportunity-stages', [OpportunityController::class, 'stages']);
     });
 });
