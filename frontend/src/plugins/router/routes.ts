@@ -16,7 +16,7 @@ export const routes = [
       { path: 'tables', component: () => import('@/pages/tables.vue') },
       { path: 'form-layouts', component: () => import('@/pages/form-layouts.vue') },
 
-      // UI Lab (موقت — قابل حذف)
+      // UI Lab (موقت)
       { path: 'ui-lab', component: () => import('@/pages/ui-lab/index.vue') },
       { path: 'ui-lab/buttons', component: () => import('@/pages/ui-lab/buttons.vue') },
       { path: 'ui-lab/alerts', component: () => import('@/pages/ui-lab/alerts.vue') },
@@ -39,6 +39,17 @@ export const routes = [
       { path: 'ui-lab/selects', component: () => import('@/pages/ui-lab/selects.vue') },
       { path: 'ui-lab/toggles', component: () => import('@/pages/ui-lab/toggles.vue') },
       { path: 'ui-lab/form-validation', component: () => import('@/pages/ui-lab/form-validation.vue') },
+      { path: 'ui-lab/card-advance', component: () => import('@/pages/ui-lab/card-advance.vue') },
+      { path: 'ui-lab/card-widgets', component: () => import('@/pages/ui-lab/card-widgets.vue') },
+      { path: 'ui-lab/card-statistics', component: () => import('@/pages/ui-lab/card-statistics.vue') },
+      { path: 'ui-lab/card-gamification', component: () => import('@/pages/ui-lab/card-gamification.vue') },
+      { path: 'ui-lab/card-actions', component: () => import('@/pages/ui-lab/card-actions.vue') },
+      { path: 'ui-lab/form-wizard', component: () => import('@/pages/ui-lab/form-wizard.vue') },
+      { path: 'ui-lab/autocomplete', component: () => import('@/pages/ui-lab/autocomplete.vue') },
+      { path: 'ui-lab/inputs-extra', component: () => import('@/pages/ui-lab/inputs-extra.vue') },
+      { path: 'ui-lab/data-table', component: () => import('@/pages/ui-lab/data-table.vue') },
+      { path: 'ui-lab/apex', component: () => import('@/pages/ui-lab/apex.vue') },
+      { path: 'ui-lab/kanban', component: () => import('@/pages/ui-lab/kanban.vue') },
     ],
   },
   {
