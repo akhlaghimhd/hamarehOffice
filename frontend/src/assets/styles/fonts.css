@@ -27,8 +27,64 @@
   font-display: swap;
 }
 
-html, body, .v-application, .v-application * {
-  font-family: 'Vazir', Tahoma, sans-serif !important;
+:root {
+  --font-vazir: 'Vazir', Tahoma, 'Segoe UI', sans-serif;
+}
+
+html,
+body,
+#app,
+.v-application,
+.v-overlay-container {
+  font-family: var(--font-vazir) !important;
+}
+
+/* تمام متن‌ها به جز آیکن‌ها */
+.v-application :not(.ri):not([class*='ri-']):not(.v-icon):not(i):not(svg):not(path),
+.v-application .v-btn,
+.v-application .v-field,
+.v-application .v-list-item-title,
+.v-application .v-label,
+.v-application .v-card-title,
+.v-application .v-tab,
+.v-application input,
+.v-application textarea,
+.v-application select {
+  font-family: var(--font-vazir) !important;
+}
+
+/* آیکن‌ها را دست نزن */
+.v-icon,
+.ri,
+[class^='ri-'],
+[class*=' ri-'] {
+  font-family: 'remixicon', 'Material Design Icons', sans-serif !important;
+}
+
+/* ─── جداسازی منو از بدنه ─── */
+.layout-nav-type-vertical .layout-vertical-nav {
+  border-inline-end: 1px solid rgba(46, 38, 61, 0.1) !important;
+  box-shadow: 4px 0 24px rgba(46, 38, 61, 0.06) !important;
+  z-index: 1003;
+}
+
+.layout-nav-type-vertical .layout-page-content {
+  padding-inline: 1.25rem !important;
+}
+
+@media (min-width: 1280px) {
+  .layout-nav-type-vertical .layout-page-content {
+    padding-inline: 1.75rem !important;
+  }
+}
+
+.layout-nav-type-vertical .layout-content-wrapper {
+  background: rgb(var(--v-theme-background));
+}
+
+/* هدر محتوا کمی جدا از منو */
+.layout-nav-type-vertical .layout-navbar {
+  border-inline-start: 1px solid rgba(46, 38, 61, 0.06);
 }
 
 /* Fix: vertical nav top shadow / double-scroll feel in RTL */
@@ -39,14 +95,12 @@ html, body, .v-application, .v-application * {
   overscroll-behavior: contain;
 }
 
-/* اگر سایه بالای منو بعد از اسکرول زشت است */
 .layout-vertical-nav.scrolled,
 .layout-vertical-nav .nav-header.scrolled,
 .layout-nav-type-vertical .nav-items.scrolled {
   box-shadow: none !important;
 }
 
-/* گاهی اسکرول صفحه + اسکرول منو با هم قاطی می‌شوند */
 .layout-vertical-nav {
   overflow: hidden;
 }
@@ -54,8 +108,6 @@ html, body, .v-application, .v-application * {
   overflow-y: auto !important;
   height: 100%;
 }
-
-/* Disable vertical-nav scrolled elevation (looks broken in RTL) */
 .layout-vertical-nav.scrolled {
   box-shadow: none !important;
 }
