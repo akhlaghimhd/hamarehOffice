@@ -45,52 +45,30 @@ async function onSubmit() {
 
 <template>
   <div class="auth-wrapper d-flex align-center justify-center pa-4">
-    <VCard
-      class="auth-card pa-4 pt-7"
-      max-width="448"
-    >
+    <VCard class="auth-card pa-4 pt-7" max-width="448">
       <VCardItem class="justify-center">
-        <div class="d-flex align-center gap-3">
-          <div
-            class="d-flex"
-            v-html="logo"
-          />
-          <h2 class="font-weight-medium text-2xl">
-            هم‌ره
-          </h2>
+        <div class="d-flex flex-column align-center gap-2">
+          <div class="d-flex" v-html="logo" />
+          <h2 class="font-weight-medium text-2xl mb-0">هماره</h2>
+          <span class="text-body-2 text-medium-emphasis">هوشمند آرمان هماره</span>
         </div>
       </VCardItem>
 
-      <VCardText class="pt-2">
-        <h4 class="text-h4 mb-1">
-          ورود به سیستم
-        </h4>
-        <p class="mb-0">
-          ایمیل و رمز عبور را وارد کنید
-        </p>
+      <VCardText class="pt-4">
+        <h4 class="text-h4 mb-1">ورود به سیستم</h4>
+        <p class="mb-0">ایمیل و رمز عبور را وارد کنید</p>
       </VCardText>
 
       <VCardText>
-        <VAlert
-          v-if="errorMessage"
-          type="error"
-          variant="tonal"
-          class="mb-4"
-        >
+        <VAlert v-if="errorMessage" type="error" variant="tonal" class="mb-4">
           {{ errorMessage }}
         </VAlert>
 
         <VForm @submit.prevent="onSubmit">
           <VRow>
             <VCol cols="12">
-              <VTextField
-                v-model="form.email"
-                label="ایمیل"
-                type="email"
-                autocomplete="username"
-              />
+              <VTextField v-model="form.email" label="ایمیل" type="email" autocomplete="username" />
             </VCol>
-
             <VCol cols="12">
               <VTextField
                 v-model="form.password"
@@ -100,41 +78,19 @@ async function onSubmit() {
                 :append-inner-icon="isPasswordVisible ? 'ri-eye-off-line' : 'ri-eye-line'"
                 @click:append-inner="isPasswordVisible = !isPasswordVisible"
               />
-
               <div class="d-flex align-center justify-space-between flex-wrap my-6">
-                <VCheckbox
-                  v-model="form.remember"
-                  label="مرا به خاطر بسپار"
-                />
+                <VCheckbox v-model="form.remember" label="مرا به خاطر بسپار" />
               </div>
-
-              <VBtn
-                block
-                type="submit"
-                :loading="loading"
-              >
-                ورود
-              </VBtn>
+              <VBtn block type="submit" :loading="loading">ورود</VBtn>
             </VCol>
           </VRow>
         </VForm>
       </VCardText>
     </VCard>
 
-    <VImg
-      class="auth-footer-start-tree d-none d-md-block"
-      :src="authV1Tree"
-      :width="250"
-    />
-    <VImg
-      :src="authV1Tree2"
-      class="auth-footer-end-tree d-none d-md-block"
-      :width="350"
-    />
-    <VImg
-      class="auth-footer-mask d-none d-md-block"
-      :src="authThemeMask"
-    />
+    <VImg class="auth-footer-start-tree d-none d-md-block" :src="authV1Tree" :width="250" />
+    <VImg :src="authV1Tree2" class="auth-footer-end-tree d-none d-md-block" :width="350" />
+    <VImg class="auth-footer-mask d-none d-md-block" :src="authThemeMask" />
   </div>
 </template>
 
