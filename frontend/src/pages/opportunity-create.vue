@@ -19,6 +19,9 @@ const formRef = ref()
 const saving = ref(false)
 const stages = ref<{ title: string; value: number }[]>([])
 
+/** پنل‌های اختیاری — پیش‌فرض بسته */
+const openOptional = ref<string[]>([])
+
 const user = computed(() => getUser<{ name?: string }>())
 const assigneeLabel = computed(() => `خودم (${user.value?.name || 'کاربر جاری'})`)
 
@@ -91,7 +94,13 @@ const form = ref({
   contact_mobile: '',
   contact_phone: '',
   contact_email: '',
+  alt_email: '',
+  website: '',
+  city: '',
+  province: '',
+  postal_code: '',
   address: '',
+  messenger: '',
   application_need: '',
   tirage: '',
   budget_band: '',
@@ -112,12 +121,20 @@ const form = ref({
 
 const showIndustryNote = computed(() => form.value.industry === 'سایر')
 const showValueNote = computed(() => form.value.customer_value_focus === 'سایر')
-const showLostFields = computed(() =>
-  ['paused', 'lost'].includes(form.value.status) || form.value.lost_reason,
-)
-const showResultNote = computed(() =>
-  ['won', 'lost'].includes(form.value.status),
-)
+const showResultNote = computed(() => ['won', 'lost'].includes(form.value.status))
+
+function buildAddressBlob() {
+  const lines = [
+    form.value.address ? `آدرس: ${form.value.address}` : '',
+    form.value.city ? `شهر: ${form.value.city}` : '',
+    form.value.province ? `استان: ${form.value.province}` : '',
+    form.value.postal_code ? `کدپستی: ${form.value.postal_code}` : '',
+    form.value.website ? `وب‌سایت: ${form.value.website}` : '',
+    form.value.alt_email ? `ایمیل دوم: ${form.value.alt_email}` : '',
+    form.value.messenger ? `پیام‌رسان: ${form.value.messenger}` : '',
+  ].filter(Boolean)
+  return lines.join('\n') || null
+}
 
 async function loadStages() {
   try {
@@ -140,12 +157,10 @@ async function submit() {
     notifyError('شرکت جاری مشخص نشده است.')
     return
   }
-
   if (!form.value.products?.length) {
     notifyError('حداقل یک محصول را انتخاب کنید.')
     return
   }
-
   if (!form.value.stage_id) {
     notifyError('مرحله قیف را انتخاب کنید.')
     return
@@ -176,7 +191,7 @@ async function submit() {
       contact_mobile: form.value.contact_mobile || null,
       contact_phone: form.value.contact_phone || null,
       contact_email: form.value.contact_email || null,
-      address: form.value.address || null,
+      address: buildAddressBlob(),
       application_need: form.value.application_need || null,
       tirage: form.value.tirage || null,
       budget_band: form.value.budget_band || null,
@@ -210,35 +225,34 @@ onMounted(loadStages)
 
 <template>
   <div class="opp-create">
-    <div class="d-flex flex-wrap align-center justify-space-between gap-3 mb-6">
+    <div class="d-flex flex-wrap align-center justify-space-between gap-2 mb-4">
       <div>
         <VBtn
           variant="text"
           color="secondary"
           size="small"
-          class="mb-1 px-0"
+          class="mb-0 px-0"
           prepend-icon="ri-arrow-right-line"
           @click="$router.push('/opportunities')"
         >
-          بازگشت به فرصت‌ها
+          فرصت‌ها
         </VBtn>
-        <h4 class="text-h4 mb-1">
+        <h5 class="text-h5 mb-0">
           ثبت کامل فرصت
-        </h4>
-        <p class="text-body-2 text-medium-emphasis mb-0">
-          از هویت سازمان تا گام اول پیگیری — فیلدهای ستاره‌دار برای ثبت نهایی ضروری‌اند
-        </p>
+        </h5>
       </div>
       <div class="d-flex gap-2">
         <VBtn
           variant="tonal"
           color="secondary"
+          size="small"
           @click="$router.push('/opportunities')"
         >
           انصراف
         </VBtn>
         <VBtn
           color="primary"
+          size="small"
           prepend-icon="ri-save-3-line"
           :loading="saving"
           @click="submit"
@@ -250,36 +264,41 @@ onMounted(loadStages)
 
     <VForm
       ref="formRef"
+      class="opp-create__form"
       @submit.prevent="submit"
     >
-      <!-- ۱. سازمان و تماس -->
-      <VCard class="mb-4 section-card section-card--required">
-        <VCardItem>
+      <!-- ۱ ضروری -->
+      <VCard class="mb-3 section-card section-card--required">
+        <VCardItem class="py-2 px-4">
           <template #prepend>
             <VAvatar
               color="success"
               variant="tonal"
-              size="40"
+              size="32"
               rounded
             >
-              <VIcon icon="ri-building-2-line" />
+              <VIcon
+                icon="ri-building-2-line"
+                size="18"
+              />
             </VAvatar>
           </template>
-          <VCardTitle class="text-h6">
+          <VCardTitle class="text-body-1 font-weight-medium">
             ۱. سازمان و تماس
           </VCardTitle>
           <template #append>
             <VChip
               color="success"
-              size="small"
+              size="x-small"
               variant="tonal"
             >
               ضروری
             </VChip>
           </template>
         </VCardItem>
-        <VCardText>
-          <VRow>
+        <VDivider />
+        <VCardText class="pa-4">
+          <VRow dense>
             <VCol cols="12" md="6">
               <VTextField
                 v-model="form.organization_name"
@@ -344,185 +363,215 @@ onMounted(loadStages)
         </VCardText>
       </VCard>
 
-      <!-- ۲. ایمیل و آدرس -->
-      <VCard class="mb-4 section-card section-card--optional">
-        <VCardItem>
-          <template #prepend>
-            <VAvatar
-              color="info"
-              variant="tonal"
-              size="40"
-              rounded
-            >
-              <VIcon icon="ri-mail-line" />
-            </VAvatar>
-          </template>
-          <VCardTitle class="text-h6">
-            ۲. ایمیل و آدرس
-          </VCardTitle>
-          <template #append>
-            <VChip
-              color="secondary"
-              size="small"
-              variant="tonal"
-            >
-              اختیاری
-            </VChip>
-          </template>
-        </VCardItem>
-        <VCardText>
-          <p class="text-body-2 text-medium-emphasis mb-4">
-            برای پیگیری بعدی مفید است؛ اگر ندارید خالی بگذارید.
-          </p>
-          <VRow>
-            <VCol cols="12" md="6">
-              <VTextField
-                v-model="form.contact_email"
-                label="ایمیل"
-                type="email"
-                placeholder="name@company.com"
-              />
-            </VCol>
-            <VCol cols="12" md="6">
-              <VTextField
-                v-model="form.address"
-                label="آدرس / محل فعالیت"
-                placeholder="شهر و آدرس تقریبی"
-              />
-            </VCol>
-          </VRow>
-        </VCardText>
-      </VCard>
+      <!-- اختیاری‌ها: expansion -->
+      <VExpansionPanels
+        v-model="openOptional"
+        multiple
+        class="mb-3 optional-panels"
+      >
+        <!-- ۲ -->
+        <VExpansionPanel value="contact">
+          <VExpansionPanelTitle class="text-body-2">
+            <div class="d-flex align-center gap-2 w-100 pe-2">
+              <VAvatar
+                color="info"
+                variant="tonal"
+                size="28"
+                rounded
+              >
+                <VIcon
+                  icon="ri-mail-line"
+                  size="16"
+                />
+              </VAvatar>
+              <span class="font-weight-medium">۲. تماس تکمیلی و آدرس</span>
+              <VSpacer />
+              <VChip
+                size="x-small"
+                variant="tonal"
+                color="secondary"
+              >
+                اختیاری
+              </VChip>
+            </div>
+          </VExpansionPanelTitle>
+          <VExpansionPanelText>
+            <VRow dense>
+              <VCol cols="12" md="6">
+                <VTextField
+                  v-model="form.contact_email"
+                  label="ایمیل اصلی"
+                  type="email"
+                  placeholder="name@company.com"
+                />
+              </VCol>
+              <VCol cols="12" md="6">
+                <VTextField
+                  v-model="form.alt_email"
+                  label="ایمیل دوم"
+                  type="email"
+                  placeholder="برای مکاتبات موازی"
+                />
+              </VCol>
+              <VCol cols="12" md="6">
+                <VTextField
+                  v-model="form.website"
+                  label="وب‌سایت"
+                  placeholder="https://..."
+                />
+              </VCol>
+              <VCol cols="12" md="6">
+                <VTextField
+                  v-model="form.messenger"
+                  label="پیام‌رسان (تلگرام / واتساپ)"
+                  placeholder="@username یا شماره"
+                />
+              </VCol>
+              <VCol cols="12" md="4">
+                <VTextField
+                  v-model="form.province"
+                  label="استان"
+                />
+              </VCol>
+              <VCol cols="12" md="4">
+                <VTextField
+                  v-model="form.city"
+                  label="شهر"
+                />
+              </VCol>
+              <VCol cols="12" md="4">
+                <VTextField
+                  v-model="form.postal_code"
+                  label="کد پستی"
+                  inputmode="numeric"
+                />
+              </VCol>
+              <VCol cols="12">
+                <VTextField
+                  v-model="form.address"
+                  label="آدرس / محل فعالیت"
+                  placeholder="خیابان، پلاک، واحد..."
+                />
+              </VCol>
+            </VRow>
+          </VExpansionPanelText>
+        </VExpansionPanel>
 
-      <!-- ۳. نیاز، بودجه و ارزش -->
-      <VCard class="mb-4 section-card section-card--meta">
-        <VCardItem>
-          <template #prepend>
-            <VAvatar
-              color="warning"
-              variant="tonal"
-              size="40"
-              rounded
-            >
-              <VIcon icon="ri-funds-line" />
-            </VAvatar>
-          </template>
-          <VCardTitle class="text-h6">
-            ۳. نیاز، بودجه و ارزش
-          </VCardTitle>
-          <template #append>
-            <VChip
-              color="secondary"
-              size="small"
-              variant="tonal"
-            >
-              اختیاری — متا
-            </VChip>
-          </template>
-        </VCardItem>
-        <VCardText>
-          <p class="text-body-2 text-medium-emphasis mb-4">
-            این‌ها کیفیت سرنخ را بهتر می‌کند؛ بعداً هم قابل تکمیل است.
-          </p>
-          <VRow>
-            <VCol cols="12" md="6">
-              <VTextField
-                v-model="form.application_need"
-                label="کاربرد خرید / نیاز"
-                placeholder="هدیه سازمانی، برندینگ، نمایشگاه..."
-              />
-            </VCol>
-            <VCol cols="12" md="6">
-              <VTextField
-                v-model="form.tirage"
-                label="تیراژ تقریبی"
-                placeholder="مثلاً ۲۵۰۰ جلد"
-              />
-            </VCol>
-            <VCol cols="12" md="6">
-              <VSelect
-                v-model="form.budget_band"
-                :items="budgetItems"
-                label="بودجه تقریبی"
-              />
-            </VCol>
-            <VCol cols="12" md="6">
-              <VTextField
-                v-model="form.purchase_timing"
-                label="زمان خرید احتمالی"
-                placeholder="فوری / تا پایان ماه / فصل بعد"
-              />
-            </VCol>
-            <VCol cols="12" md="6">
-              <VSelect
-                v-model="form.customer_value_focus"
-                :items="valueItems"
-                label="ارزش مورد توجه مشتری"
-              />
-            </VCol>
-            <VCol cols="12" md="6">
-              <VTextField
-                v-model="form.value_note"
-                label="توضیح ارزش (سایر)"
-                :disabled="!showValueNote"
-              />
-            </VCol>
-            <VCol cols="12">
-              <VTextarea
-                v-model="form.main_objection"
-                label="نگرانی یا اعتراض اصلی"
-                placeholder="اگر مخالفت یا دغدغه‌ای مطرح شده بنویسید"
-                rows="2"
-              />
-            </VCol>
-          </VRow>
-        </VCardText>
-      </VCard>
+        <!-- ۳ -->
+        <VExpansionPanel value="meta">
+          <VExpansionPanelTitle class="text-body-2">
+            <div class="d-flex align-center gap-2 w-100 pe-2">
+              <VAvatar
+                color="warning"
+                variant="tonal"
+                size="28"
+                rounded
+              >
+                <VIcon
+                  icon="ri-funds-line"
+                  size="16"
+                />
+              </VAvatar>
+              <span class="font-weight-medium">۳. نیاز، بودجه و ارزش</span>
+              <VSpacer />
+              <VChip
+                size="x-small"
+                variant="tonal"
+                color="secondary"
+              >
+                اختیاری
+              </VChip>
+            </div>
+          </VExpansionPanelTitle>
+          <VExpansionPanelText>
+            <VRow dense>
+              <VCol cols="12" md="6">
+                <VTextField
+                  v-model="form.application_need"
+                  label="کاربرد خرید / نیاز"
+                  placeholder="هدیه سازمانی، برندینگ..."
+                />
+              </VCol>
+              <VCol cols="12" md="6">
+                <VTextField
+                  v-model="form.tirage"
+                  label="تیراژ تقریبی"
+                  placeholder="مثلاً ۲۵۰۰ جلد"
+                />
+              </VCol>
+              <VCol cols="12" md="6">
+                <VSelect
+                  v-model="form.budget_band"
+                  :items="budgetItems"
+                  label="بودجه تقریبی"
+                />
+              </VCol>
+              <VCol cols="12" md="6">
+                <VTextField
+                  v-model="form.purchase_timing"
+                  label="زمان خرید احتمالی"
+                  placeholder="فوری / تا پایان ماه"
+                />
+              </VCol>
+              <VCol cols="12" md="6">
+                <VSelect
+                  v-model="form.customer_value_focus"
+                  :items="valueItems"
+                  label="ارزش مورد توجه مشتری"
+                />
+              </VCol>
+              <VCol cols="12" md="6">
+                <VTextField
+                  v-model="form.value_note"
+                  label="توضیح ارزش (سایر)"
+                  :disabled="!showValueNote"
+                />
+              </VCol>
+              <VCol cols="12">
+                <VTextarea
+                  v-model="form.main_objection"
+                  label="نگرانی یا اعتراض اصلی"
+                  rows="2"
+                  auto-grow
+                />
+              </VCol>
+            </VRow>
+          </VExpansionPanelText>
+        </VExpansionPanel>
+      </VExpansionPanels>
 
-      <!-- ۴. مرحله قیف و وضعیت -->
-      <VCard class="mb-4 section-card section-card--funnel">
-        <VCardItem>
+      <!-- ۴ قیف -->
+      <VCard class="mb-3 section-card section-card--funnel">
+        <VCardItem class="py-2 px-4">
           <template #prepend>
             <VAvatar
               color="primary"
               variant="tonal"
-              size="40"
+              size="32"
               rounded
             >
-              <VIcon icon="ri-filter-3-line" />
+              <VIcon
+                icon="ri-filter-3-line"
+                size="18"
+              />
             </VAvatar>
           </template>
-          <VCardTitle class="text-h6">
+          <VCardTitle class="text-body-1 font-weight-medium">
             ۴. مرحله قیف و وضعیت
           </VCardTitle>
           <template #append>
             <VChip
               color="primary"
-              size="small"
+              size="x-small"
               variant="tonal"
             >
               قیف ضروری
             </VChip>
           </template>
         </VCardItem>
-        <VCardText>
-          <p class="text-body-2 text-medium-emphasis mb-3">
-            مرحله قیف را حتماً مشخص کنید؛ برای فرصت تازه معمولاً «سرنخ اولیه» مناسب است.
-          </p>
-          <VAlert
-            type="info"
-            variant="tonal"
-            density="compact"
-            class="mb-4 text-body-2"
-          >
-            <div><strong>سرنخ اولیه:</strong> اولین تماس یا معرفی؛ هنوز جلسه رسمی یا نیاز مشخص نشده.</div>
-            <div><strong>واجد شرایط:</strong> بودجه، زمان خرید و نقش تصمیم‌گیر تا حدی روشن است.</div>
-            <div><strong>جلسه / نمایش:</strong> جلسه حضوری یا آنلاین برگزار شده یا قطعی شده است.</div>
-            <div><strong>پیشنهاد ارسال‌شده:</strong> پیشنهاد قیمت یا طرح رسمی برای مشتری ارسال شده.</div>
-            <div><strong>مذاکره:</strong> در حال چانه‌زنی روی قیمت، تیراژ یا شرایط قرارداد.</div>
-            <div><strong>بسته شدن موفق/ناموفق:</strong> سفارش قطعی یا فرصت از دست رفته.</div>
-          </VAlert>
-          <VRow>
+        <VDivider />
+        <VCardText class="pa-4">
+          <VRow dense>
             <VCol cols="12" md="6">
               <VSelect
                 v-model="form.stage_id"
@@ -543,7 +592,6 @@ onMounted(loadStages)
                 v-model="form.lost_reason"
                 :items="lostReasonItems"
                 label="دلیل توقف یا باخت"
-                :disabled="!showLostFields && !form.lost_reason"
               />
             </VCol>
             <VCol cols="12" md="6">
@@ -559,54 +607,55 @@ onMounted(loadStages)
             >
               <VTextarea
                 v-model="form.result_note"
-                label="نتیجه نهایی (اگر بسته شد)"
+                label="نتیجه نهایی"
                 rows="2"
+                auto-grow
               />
             </VCol>
           </VRow>
         </VCardText>
       </VCard>
 
-      <!-- ۵. گام اول پیگیری -->
-      <VCard class="mb-4 section-card section-card--step">
-        <VCardItem>
+      <!-- ۵ گام -->
+      <VCard class="mb-3 section-card section-card--step">
+        <VCardItem class="py-2 px-4">
           <template #prepend>
             <VAvatar
               color="success"
               variant="flat"
-              size="40"
+              size="32"
               rounded
             >
               <VIcon
                 icon="ri-flag-line"
+                size="18"
                 color="white"
               />
             </VAvatar>
           </template>
-          <VCardTitle class="text-h6">
+          <VCardTitle class="text-body-1 font-weight-medium">
             ۵. گام اول پیگیری
           </VCardTitle>
           <template #append>
             <VChip
               color="success"
-              size="small"
+              size="x-small"
               variant="flat"
             >
-              برای ثبت نهایی ضروری
+              ضروری ثبت
             </VChip>
           </template>
         </VCardItem>
-        <VCardText>
-          <p class="text-body-2 text-medium-emphasis mb-4">
-            مشخص کنید بعد از ثبت، چه کاری باید انجام شود و تا کی.
-          </p>
-          <VRow>
+        <VDivider />
+        <VCardText class="pa-4">
+          <VRow dense>
             <VCol cols="12">
               <VTextarea
                 v-model="form.next_step"
                 label="گام بعدی"
-                placeholder="مثال: تماس سه‌شنبه برای هماهنگی جلسه با مدیر خرید"
-                rows="3"
+                placeholder="مثال: تماس سه‌شنبه برای هماهنگی جلسه"
+                rows="2"
+                auto-grow
                 :rules="[rules.required('گام بعدی')]"
               />
             </VCol>
@@ -621,77 +670,77 @@ onMounted(loadStages)
                 :model-value="assigneeLabel"
                 label="مسئول پیگیری"
                 readonly
-                hint="فعلاً به کاربر جاری واگذار می‌شود"
-                persistent-hint
               />
             </VCol>
           </VRow>
         </VCardText>
       </VCard>
 
-      <!-- ۶. یادداشت شروع -->
-      <VCard class="mb-6 section-card section-card--optional">
-        <VCardItem>
-          <template #prepend>
-            <VAvatar
-              color="secondary"
-              variant="tonal"
-              size="40"
-              rounded
-            >
-              <VIcon icon="ri-sticky-note-line" />
-            </VAvatar>
-          </template>
-          <VCardTitle class="text-h6">
-            ۶. یادداشت شروع
-          </VCardTitle>
-          <template #append>
-            <VChip
-              color="secondary"
-              size="small"
-              variant="tonal"
-            >
-              اختیاری
-            </VChip>
-          </template>
-        </VCardItem>
-        <VCardText>
-          <p class="text-body-2 text-medium-emphasis mb-4">
-            برای فرصت تازه «آخرین تعامل» معمولاً خالی است. اگر همین الان تماسی داشتید اینجا بنویسید.
-          </p>
-          <VRow>
-            <VCol cols="12">
-              <VTextarea
-                v-model="form.lead_source_note"
-                label="یادداشت شروع / منبع سرنخ"
-                placeholder="مثال: معرفی از نمایشگاه / تماس سرد / مشتری قبلی"
-                rows="2"
-              />
-            </VCol>
-            <VCol cols="12">
-              <VTextarea
-                v-model="form.opening_note"
-                label="یادداشت آزاد"
-                placeholder="هر نکته‌ای که بعداً کمک می‌کند"
-                rows="2"
-              />
-            </VCol>
-          </VRow>
-        </VCardText>
-      </VCard>
+      <!-- ۶ یادداشت -->
+      <VExpansionPanels
+        v-model="openOptional"
+        multiple
+        class="mb-4 optional-panels"
+      >
+        <VExpansionPanel value="notes">
+          <VExpansionPanelTitle class="text-body-2">
+            <div class="d-flex align-center gap-2 w-100 pe-2">
+              <VAvatar
+                color="secondary"
+                variant="tonal"
+                size="28"
+                rounded
+              >
+                <VIcon
+                  icon="ri-sticky-note-line"
+                  size="16"
+                />
+              </VAvatar>
+              <span class="font-weight-medium">۶. یادداشت شروع</span>
+              <VSpacer />
+              <VChip
+                size="x-small"
+                variant="tonal"
+                color="secondary"
+              >
+                اختیاری
+              </VChip>
+            </div>
+          </VExpansionPanelTitle>
+          <VExpansionPanelText>
+            <VRow dense>
+              <VCol cols="12">
+                <VTextarea
+                  v-model="form.lead_source_note"
+                  label="منبع سرنخ / یادداشت شروع"
+                  placeholder="نمایشگاه / تماس سرد / معرفی"
+                  rows="2"
+                  auto-grow
+                />
+              </VCol>
+              <VCol cols="12">
+                <VTextarea
+                  v-model="form.opening_note"
+                  label="یادداشت آزاد"
+                  rows="2"
+                  auto-grow
+                />
+              </VCol>
+            </VRow>
+          </VExpansionPanelText>
+        </VExpansionPanel>
+      </VExpansionPanels>
 
-      <div class="d-flex flex-wrap justify-end gap-2 pb-8">
+      <div class="d-flex flex-wrap justify-end gap-2 pb-6">
         <VBtn
           variant="tonal"
           color="secondary"
-          size="large"
           @click="$router.push('/opportunities')"
         >
           انصراف
         </VBtn>
         <VBtn
           color="primary"
-          size="large"
           prepend-icon="ri-save-3-line"
           :loading="saving"
           @click="submit"
@@ -706,27 +755,29 @@ onMounted(loadStages)
 <style scoped>
 .section-card {
   border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
-  overflow: hidden;
 }
-
 .section-card--required {
   border-inline-start: 3px solid rgb(var(--v-theme-success));
 }
-
 .section-card--funnel {
   border-inline-start: 3px solid rgb(var(--v-theme-primary));
 }
-
 .section-card--step {
   border-inline-start: 3px solid rgb(var(--v-theme-success));
-  background: rgba(var(--v-theme-success), 0.04);
+  background: rgba(var(--v-theme-success), 0.03);
 }
 
-.section-card--meta {
-  border-inline-start: 3px solid rgb(var(--v-theme-warning));
+.optional-panels :deep(.v-expansion-panel) {
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  margin-bottom: 0.5rem !important;
+  border-radius: 8px !important;
+  overflow: hidden;
 }
-
-.section-card--optional {
-  border-inline-start: 3px solid rgba(var(--v-theme-on-surface), 0.18);
+.optional-panels :deep(.v-expansion-panel-title) {
+  min-height: 48px;
+  padding-block: 8px;
+}
+.optional-panels :deep(.v-expansion-panel-text__wrapper) {
+  padding: 12px 16px 16px;
 }
 </style>
