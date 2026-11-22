@@ -70,6 +70,10 @@ function openCreate() {
   drawerOpen.value = true
 }
 
+function goToOpportunity(_event: unknown, ctx: { item: { id: number } }) {
+  router.push('/opportunities/' + ctx.item.id)
+}
+
 async function load() {
   if (!getCompany()?.id) {
     notifyError('شرکت جاری مشخص نشده است.')
@@ -129,7 +133,7 @@ async function saveQuick() {
     success('فرصت با موفقیت ثبت شد')
     await load()
     if (res.data?.id)
-      router.push(`/opportunities/${res.data.id}`)
+      router.push('/opportunities/' + res.data.id)
   }
   catch (e: any) {
     notifyError(e?.message || 'ثبت فرصت ناموفق بود')
@@ -212,7 +216,7 @@ onMounted(load)
         :items="items"
         :loading="loading"
         class="text-no-wrap"
-        @click:row="(_: any, ctx: any) => $router.push(`/opportunities/${ctx.item.id})"
+        @click:row="goToOpportunity"
       >
         <template #item.code="{ item }">
           {{ toFaDigits(item.code) }}
