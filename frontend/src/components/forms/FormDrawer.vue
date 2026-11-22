@@ -37,9 +37,10 @@ function onDrawerUpdate(v: boolean) {
 </script>
 
 <template>
+  <!-- location=right ثابت: در RTL مقدار end می‌شود چپ و اشتباه است -->
   <VNavigationDrawer
     :model-value="modelValue"
-    location="end"
+    location="right"
     temporary
     :width="width"
     class="form-drawer"
