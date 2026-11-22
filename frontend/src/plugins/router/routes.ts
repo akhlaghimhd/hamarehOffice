@@ -50,6 +50,10 @@ export const routes = [
       { path: 'ui-lab/data-table', component: () => import('@/pages/ui-lab/data-table.vue') },
       { path: 'ui-lab/apex', component: () => import('@/pages/ui-lab/apex.vue') },
       { path: 'ui-lab/kanban', component: () => import('@/pages/ui-lab/kanban.vue') },
+      { path: 'ui-lab/dashboards-analytics', component: () => import('@/pages/ui-lab/dashboards-analytics.vue') },
+      { path: 'ui-lab/dashboards-ecommerce', component: () => import('@/pages/ui-lab/dashboards-ecommerce.vue') },
+      { path: 'ui-lab/dashboards-academy', component: () => import('@/pages/ui-lab/dashboards-academy.vue') },
+      { path: 'ui-lab/dashboards-logistics', component: () => import('@/pages/ui-lab/dashboards-logistics.vue') },
     ],
   },
   {
