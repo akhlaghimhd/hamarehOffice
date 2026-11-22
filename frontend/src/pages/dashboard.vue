@@ -11,100 +11,64 @@ import AnalyticsWeeklyOverview from '@/views/dashboard/AnalyticsWeeklyOverview.v
 import CardStatisticsVertical from '@core/components/cards/CardStatisticsVertical.vue'
 
 const totalProfit = {
-  title: 'Total Profit',
+  title: 'سود کل',
   color: 'secondary',
   icon: 'ri-pie-chart-2-line',
-  stats: '$25.6k',
+  stats: '۲۵.۶ میلیون',
   change: 42,
-  subtitle: 'Weekly Project',
+  subtitle: 'پروژه هفتگی',
 }
 
 const newProject = {
-  title: 'New Project',
+  title: 'پروژه جدید',
   color: 'primary',
   icon: 'ri-file-word-2-line',
-  stats: '862',
+  stats: '۸۶۲',
   change: -18,
-  subtitle: 'Yearly Project',
+  subtitle: 'پروژه سالانه',
 }
 </script>
 
 <template>
   <VRow class="match-height">
-    <VCol
-      cols="12"
-      md="4"
-    >
+    <VCol cols="12" md="4">
       <AnalyticsAward />
     </VCol>
 
-    <VCol
-      cols="12"
-      md="8"
-    >
+    <VCol cols="12" md="8">
       <AnalyticsTransactions />
     </VCol>
 
-    <VCol
-      cols="12"
-      md="4"
-    >
+    <VCol cols="12" md="4">
       <AnalyticsWeeklyOverview />
     </VCol>
 
-    <VCol
-      cols="12"
-      md="4"
-    >
+    <VCol cols="12" md="4">
       <AnalyticsTotalEarning />
     </VCol>
 
-    <VCol
-      cols="12"
-      md="4"
-    >
+    <VCol cols="12" md="4">
       <VRow class="match-height">
-        <VCol
-          cols="12"
-          sm="6"
-        >
+        <VCol cols="12" sm="6">
           <AnalyticsTotalProfitLineCharts />
         </VCol>
-
-        <VCol
-          cols="12"
-          sm="6"
-        >
+        <VCol cols="12" sm="6">
           <CardStatisticsVertical v-bind="totalProfit" />
         </VCol>
-
-        <VCol
-          cols="12"
-          sm="6"
-        >
+        <VCol cols="12" sm="6">
           <CardStatisticsVertical v-bind="newProject" />
         </VCol>
-
-        <VCol
-          cols="12"
-          sm="6"
-        >
+        <VCol cols="12" sm="6">
           <AnalyticsBarCharts />
         </VCol>
       </VRow>
     </VCol>
 
-    <VCol
-      cols="12"
-      md="4"
-    >
+    <VCol cols="12" md="4">
       <AnalyticsSalesByCountries />
     </VCol>
 
-    <VCol
-      cols="12"
-      md="8"
-    >
+    <VCol cols="12" md="8">
       <AnalyticsDepositWithdraw />
     </VCol>
 

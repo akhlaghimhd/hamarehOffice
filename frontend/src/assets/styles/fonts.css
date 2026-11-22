@@ -1,0 +1,64 @@
+@font-face {
+  font-family: 'Vazir';
+  src: url('/fonts/vazir/Vazir-Light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Vazir';
+  src: url('/fonts/vazir/Vazir-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Vazir';
+  src: url('/fonts/vazir/Vazir-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Vazir';
+  src: url('/fonts/vazir/Vazir-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+html, body, .v-application, .v-application * {
+  font-family: 'Vazir', Tahoma, sans-serif !important;
+}
+
+/* Fix: vertical nav top shadow / double-scroll feel in RTL */
+.layout-nav-type-vertical .scrollable-content,
+.layout-vertical-nav .scrollable-content,
+.layout-vertical-nav .ps,
+.layout-vertical-nav .ps__rail-y {
+  overscroll-behavior: contain;
+}
+
+/* اگر سایه بالای منو بعد از اسکرول زشت است */
+.layout-vertical-nav.scrolled,
+.layout-vertical-nav .nav-header.scrolled,
+.layout-nav-type-vertical .nav-items.scrolled {
+  box-shadow: none !important;
+}
+
+/* گاهی اسکرول صفحه + اسکرول منو با هم قاطی می‌شوند */
+.layout-vertical-nav {
+  overflow: hidden;
+}
+.layout-vertical-nav .scrollable-content {
+  overflow-y: auto !important;
+  height: 100%;
+}
+
+/* Disable vertical-nav scrolled elevation (looks broken in RTL) */
+.layout-vertical-nav.scrolled {
+  box-shadow: none !important;
+}
+.layout-vertical-nav.scrolled .nav-header {
+  box-shadow: none !important;
+}

@@ -6,8 +6,6 @@ import defaults from './defaults'
 import { icons } from './icons'
 import { themes } from './theme'
 
-// Styles
-
 import '@core/scss/template/libs/vuetify/index.scss'
 import 'vuetify/styles'
 
@@ -18,6 +16,14 @@ export default function (app: App) {
     },
     defaults,
     icons,
+    locale: {
+      locale: 'fa',
+      fallback: 'en',
+      rtl: {
+        fa: true,
+        en: false,
+      },
+    },
     theme: {
       defaultTheme: 'light',
       themes,

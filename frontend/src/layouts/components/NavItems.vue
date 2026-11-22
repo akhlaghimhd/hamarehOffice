@@ -6,7 +6,7 @@ import VerticalNavLink from '@layouts/components/VerticalNavLink.vue'
 <template>
   <VerticalNavLink
     :item="{
-      title: 'Dashboard',
+      title: 'داشبورد',
       icon: 'ri-home-smile-line',
       to: '/dashboard',
     }"
@@ -14,27 +14,27 @@ import VerticalNavLink from '@layouts/components/VerticalNavLink.vue'
 
   <VerticalNavSectionTitle
     :item="{
-      heading: 'Pages',
+      heading: 'حساب',
     }"
   />
 
   <VerticalNavLink
     :item="{
-      title: 'Login',
+      title: 'ورود',
       icon: 'ri-login-box-line',
       to: '/login',
     }"
   />
   <VerticalNavLink
     :item="{
-      title: 'Register',
+      title: 'ثبت‌نام',
       icon: 'ri-user-add-line',
       to: '/register',
     }"
   />
   <VerticalNavLink
     :item="{
-      title: 'Account Settings',
+      title: 'تنظیمات حساب',
       icon: 'ri-user-settings-line',
       to: '/account-settings',
     }"
@@ -42,41 +42,41 @@ import VerticalNavLink from '@layouts/components/VerticalNavLink.vue'
 
   <VerticalNavSectionTitle
     :item="{
-      heading: 'Components',
+      heading: 'نمونه اجزا',
     }"
   />
 
   <VerticalNavLink
     :item="{
-      title: 'Typography',
+      title: 'تایپوگرافی',
       icon: 'ri-text',
       to: '/typography',
     }"
   />
   <VerticalNavLink
     :item="{
-      title: 'Icons',
+      title: 'آیکون‌ها',
       icon: 'ri-remixicon-line',
       to: '/icons',
     }"
   />
   <VerticalNavLink
     :item="{
-      title: 'Cards',
+      title: 'کارت‌ها',
       icon: 'ri-bar-chart-box-line',
       to: '/cards',
     }"
   />
   <VerticalNavLink
     :item="{
-      title: 'Form Layouts',
+      title: 'فرم‌ها',
       icon: 'ri-layout-4-line',
       to: '/form-layouts',
     }"
   />
   <VerticalNavLink
     :item="{
-      title: 'Tables',
+      title: 'جداول',
       icon: 'ri-table-line',
       to: '/tables',
     }"

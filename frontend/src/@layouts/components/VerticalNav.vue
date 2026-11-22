@@ -78,14 +78,15 @@ const handleNavScroll = (evt: Event) => {
       name="nav-items"
       :update-is-vertical-nav-scrolled="updateIsVerticalNavScrolled"
     >
-      <PerfectScrollbar
+      <!-- PerfectScrollbar disabled for RTL stability -->
+      <div
         tag="ul"
         class="nav-items"
         :options="{ wheelPropagation: false }"
         @ps-scroll-y="handleNavScroll"
       >
         <slot />
-      </PerfectScrollbar>
+      </div>
     </slot>
     <slot name="after-nav-items" />
   </Component>
