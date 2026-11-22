@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { createParty, fetchParties } from '@/utils/api'
+import { createParty, fetchParties, getCompany } from '@/utils/api'
 
 const items = ref<any[]>([])
 const loading = ref(false)
@@ -16,6 +16,11 @@ const form = ref({
 })
 
 async function load() {
+  if (!getCompany()?.id) {
+    errorMessage.value = 'شرکت جاری مشخص نشده است. از دکمه شرکت در هدر یک شرکت انتخاب کنید.'
+    return
+  }
+
   loading.value = true
   errorMessage.value = ''
   try {
@@ -31,6 +36,10 @@ async function load() {
 }
 
 async function save() {
+  if (!getCompany()?.id) {
+    errorMessage.value = 'شرکت جاری مشخص نشده است.'
+    return
+  }
   saving.value = true
   errorMessage.value = ''
   try {
@@ -92,6 +101,9 @@ const roleLabel: Record<string, string> = {
           <VChip size="small" color="primary" variant="tonal">
             {{ roleLabel[item.role] || item.role }}
           </VChip>
+        </template>
+        <template #no-data>
+          داده‌ای نیست
         </template>
         <template #bottom />
       </VDataTable>

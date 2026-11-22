@@ -1,9 +1,38 @@
 <script setup lang="ts">
-import { getCompanies, getCompany, setCompany, switchCompanyRequest, type CompanyOption } from '@/utils/api'
+import {
+  fetchCompanies,
+  getCompanies,
+  getCompany,
+  setCompanies,
+  setCompany,
+  switchCompanyRequest,
+  type CompanyOption,
+} from '@/utils/api'
 
 const companies = ref<CompanyOption[]>(getCompanies())
 const current = ref<CompanyOption | null>(getCompany())
 const loading = ref(false)
+
+async function hydrate() {
+  loading.value = true
+  try {
+    const res = await fetchCompanies()
+    const list = res.data || []
+    setCompanies(list)
+    companies.value = list
+    current.value = getCompany()
+  }
+  catch (e) {
+    console.error(e)
+  }
+  finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => {
+  hydrate()
+})
 
 async function onSelect(company: CompanyOption) {
   if (!company || company.id === current.value?.id) return
@@ -12,11 +41,13 @@ async function onSelect(company: CompanyOption) {
     const res = await switchCompanyRequest(company.id)
     setCompany(res.company)
     current.value = res.company
-    companies.value = getCompanies().map(c => ({
+    companies.value = companies.value.map(c => ({
       ...c,
       is_default: c.id === res.company.id,
     }))
-    localStorage.setItem('hamareh_companies', JSON.stringify(companies.value))
+    setCompanies(companies.value)
+    // reload page data that depends on company
+    window.location.reload()
   }
   catch (e: any) {
     console.error(e)
@@ -38,13 +69,13 @@ async function onSelect(company: CompanyOption) {
         :loading="loading"
         prepend-icon="ri-building-4-line"
       >
-        <span class="text-truncate" style="max-inline-size: 12rem;">
+        <span class="text-truncate" style="max-inline-size: 14rem;">
           {{ current?.name || 'انتخاب شرکت' }}
         </span>
       </VBtn>
     </template>
 
-    <VList density="compact" min-width="220">
+    <VList density="compact" min-width="240">
       <VListSubheader>شرکت جاری</VListSubheader>
       <VListItem
         v-for="c in companies"

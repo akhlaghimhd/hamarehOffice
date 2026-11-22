@@ -7,6 +7,7 @@ use App\Models\CompanySetting;
 use App\Models\CompanyUser;
 use App\Models\NumberSequence;
 use App\Models\Permission;
+use App\Models\PlatformOwner;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Seeder;
@@ -36,20 +37,16 @@ class FoundationSeeder extends Seeder
             ['prefix' => 'O', 'next_number' => 1, 'padding' => 5, 'reset_policy' => 'never'],
         );
 
-        CompanySetting::query()->updateOrCreate(
-            ['company_id' => $company->id, 'key' => 'locale'],
-            ['type' => 'string', 'value' => 'fa', 'is_encrypted' => false],
-        );
-
-        CompanySetting::query()->updateOrCreate(
-            ['company_id' => $company->id, 'key' => 'brand_name'],
-            ['type' => 'string', 'value' => 'هماره', 'is_encrypted' => false],
-        );
-
-        CompanySetting::query()->updateOrCreate(
-            ['company_id' => $company->id, 'key' => 'brand_full_name'],
-            ['type' => 'string', 'value' => 'هوشمند آرمان هماره', 'is_encrypted' => false],
-        );
+        foreach ([
+            ['key' => 'locale', 'value' => 'fa'],
+            ['key' => 'brand_name', 'value' => 'هماره'],
+            ['key' => 'brand_full_name', 'value' => 'هوشمند آرمان هماره'],
+        ] as $setting) {
+            CompanySetting::query()->updateOrCreate(
+                ['company_id' => $company->id, 'key' => $setting['key']],
+                ['type' => 'string', 'value' => $setting['value'], 'is_encrypted' => false],
+            );
+        }
 
         $user = User::query()->updateOrCreate(
             ['email' => 'admin@hamareh.local'],
@@ -83,18 +80,16 @@ class FoundationSeeder extends Seeder
                         'company_user_id' => $membership->id,
                         'role_id' => $role->id,
                     ],
-                    [
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ],
+                    ['created_at' => now(), 'updated_at' => now()],
                 );
             }
         }
 
+        // مالک پلتفرم = حساب هماره (بدون UI تنظیمات مالک)
         if (Schema::hasTable('platform_owners')) {
-            DB::table('platform_owners')->updateOrInsert(
+            PlatformOwner::query()->updateOrCreate(
                 ['user_id' => $user->id],
-                ['is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+                ['is_active' => true],
             );
         }
     }

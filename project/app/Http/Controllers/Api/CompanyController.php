@@ -3,10 +3,15 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Company;
 use App\Models\CompanyUser;
+use App\Models\PlatformOwner;
+use App\Models\Role;
 use App\Support\CompanyContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class CompanyController extends Controller
 {
@@ -36,6 +41,7 @@ class CompanyController extends Controller
         ]);
 
         $membership = $context->setForUser($request->user(), (int) $data['company_id']);
+        $membership->load('company');
 
         CompanyUser::query()
             ->where('user_id', $request->user()->id)
@@ -50,5 +56,65 @@ class CompanyController extends Controller
                 'code' => $membership->company?->code,
             ],
         ]);
+    }
+
+    /**
+     * فقط مالک پلتفرم — بدون UI اختصاصی در فاز جاری.
+     */
+    public function store(Request $request): JsonResponse
+    {
+        if (! PlatformOwner::isOwner($request->user()->id)) {
+            return response()->json([
+                'message' => 'فقط مالک پلتفرم می‌تواند شرکت جدید ایجاد کند.',
+                'code' => 'platform_owner_required',
+            ], 403);
+        }
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'code' => ['nullable', 'string', 'max:32', 'unique:companies,code'],
+            'admin_user_id' => ['nullable', 'integer', 'exists:users,id'],
+        ]);
+
+        $company = DB::transaction(function () use ($data, $request) {
+            $company = Company::query()->create([
+                'name' => $data['name'],
+                'code' => $data['code'] ?? Str::upper(Str::random(6)),
+                'is_active' => true,
+            ]);
+
+            $adminId = $data['admin_user_id'] ?? $request->user()->id;
+
+            $membership = CompanyUser::query()->create([
+                'company_id' => $company->id,
+                'user_id' => $adminId,
+                'is_default' => false,
+                'is_active' => true,
+            ]);
+
+            $role = Role::query()->create([
+                'company_id' => $company->id,
+                'name' => 'admin',
+                'label' => 'مدیر شرکت',
+                'is_system' => true,
+            ]);
+
+            DB::table('company_user_role')->insert([
+                'company_user_id' => $membership->id,
+                'role_id' => $role->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            return $company;
+        });
+
+        return response()->json([
+            'data' => [
+                'id' => $company->id,
+                'name' => $company->name,
+                'code' => $company->code,
+            ],
+        ], 201);
     }
 }

@@ -19,11 +19,19 @@ export function getToken(): string | null {
 export function setAuth(token: string, user: unknown, companies?: CompanyOption[]) {
   localStorage.setItem(TOKEN_KEY, token)
   localStorage.setItem(USER_KEY, JSON.stringify(user))
-  if (companies) {
-    localStorage.setItem(COMPANIES_KEY, JSON.stringify(companies))
-    const current = companies.find(c => c.is_default) || companies[0]
-    if (current)
-      localStorage.setItem(COMPANY_KEY, JSON.stringify(current))
+  if (companies && companies.length) {
+    setCompanies(companies)
+  }
+}
+
+export function setCompanies(companies: CompanyOption[]) {
+  localStorage.setItem(COMPANIES_KEY, JSON.stringify(companies))
+  const current = getCompany()
+  const stillValid = current && companies.some(c => c.id === current.id)
+  if (!stillValid) {
+    const next = companies.find(c => c.is_default) || companies[0]
+    if (next)
+      localStorage.setItem(COMPANY_KEY, JSON.stringify(next))
   }
 }
 
@@ -94,6 +102,10 @@ export async function loginRequest(email: string, password: string) {
     { method: 'POST', body: JSON.stringify({ email, password }) },
     false,
   )
+}
+
+export async function fetchCompanies() {
+  return api<{ data: CompanyOption[] }>('/api/companies', {}, false)
 }
 
 export async function switchCompanyRequest(companyId: number) {

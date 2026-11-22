@@ -13,6 +13,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/companies', [CompanyController::class, 'index']);
     Route::post('/companies/switch', [CompanyController::class, 'switch']);
+    // فقط مالک پلتفرم — بدون صفحه UI در این فاز
+    Route::post('/companies', [CompanyController::class, 'store']);
 
     Route::middleware('company.context')->group(function () {
         Route::get('/parties', [PartyController::class, 'index']);
