@@ -10,17 +10,10 @@ import authV1Tree2 from '@images/pages/auth-v1-tree-2.png'
 import authV1Tree from '@images/pages/auth-v1-tree.png'
 
 const router = useRouter()
-
-const form = ref({
-  email: 'admin@hamareh.local',
-  password: 'password',
-  remember: true,
-})
-
+const form = ref({ email: 'admin@hamareh.local', password: 'password', remember: true })
 const isPasswordVisible = ref(false)
 const loading = ref(false)
 const errorMessage = ref('')
-
 const vuetifyTheme = useTheme()
 const authThemeMask = computed(() =>
   vuetifyTheme.global.name.value === 'light' ? authV1MaskLight : authV1MaskDark,
@@ -31,7 +24,7 @@ async function onSubmit() {
   loading.value = true
   try {
     const data = await loginRequest(form.value.email, form.value.password)
-    setAuth(data.token, data.user)
+    setAuth(data.token, data.user, data.companies || [])
     await router.push('/dashboard')
   }
   catch (e: any) {
@@ -53,17 +46,12 @@ async function onSubmit() {
           <span class="text-body-2 text-medium-emphasis">هوشمند آرمان هماره</span>
         </div>
       </VCardItem>
-
       <VCardText class="pt-4">
         <h4 class="text-h4 mb-1">ورود به سیستم</h4>
         <p class="mb-0">ایمیل و رمز عبور را وارد کنید</p>
       </VCardText>
-
       <VCardText>
-        <VAlert v-if="errorMessage" type="error" variant="tonal" class="mb-4">
-          {{ errorMessage }}
-        </VAlert>
-
+        <VAlert v-if="errorMessage" type="error" variant="tonal" class="mb-4">{{ errorMessage }}</VAlert>
         <VForm @submit.prevent="onSubmit">
           <VRow>
             <VCol cols="12">
@@ -87,7 +75,6 @@ async function onSubmit() {
         </VForm>
       </VCardText>
     </VCard>
-
     <VImg class="auth-footer-start-tree d-none d-md-block" :src="authV1Tree" :width="250" />
     <VImg :src="authV1Tree2" class="auth-footer-end-tree d-none d-md-block" :width="350" />
     <VImg class="auth-footer-mask d-none d-md-block" :src="authThemeMask" />

@@ -5,6 +5,7 @@ import VerticalNavLayout from '@layouts/components/VerticalNavLayout.vue'
 import Footer from '@/layouts/components/Footer.vue'
 import NavbarThemeSwitcher from '@/layouts/components/NavbarThemeSwitcher.vue'
 import UserProfile from '@/layouts/components/UserProfile.vue'
+import CompanySwitcher from '@/layouts/components/CompanySwitcher.vue'
 </script>
 
 <template>
@@ -26,6 +27,9 @@ import UserProfile from '@/layouts/components/UserProfile.vue'
         </div>
 
         <VSpacer />
+
+        <CompanySwitcher />
+
         <IconBtn>
           <VIcon icon="ri-notification-line" />
         </IconBtn>
