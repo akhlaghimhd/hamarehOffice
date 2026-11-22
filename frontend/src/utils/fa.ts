@@ -12,12 +12,10 @@ export function toEnDigits(value: string): string {
     .replace(/[٠-٩]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
 }
 
-/** فقط ارقام لاتین */
 export function onlyDigits(value: string): string {
   return toEnDigits(value).replace(/\D/g, '')
 }
 
-/** فرمت مبلغ ریال با جداکننده هزارگان + ارقام فارسی */
 export function formatRialFa(value: string | number | null | undefined): string {
   if (value === null || value === undefined || value === '')
     return ''
@@ -28,7 +26,6 @@ export function formatRialFa(value: string | number | null | undefined): string 
   return toFaDigits(withSep)
 }
 
-/** ورودی مبلغ نمایشی → عدد صحیح ریال (string بدون جداکننده) */
 export function parseRialInput(value: string): string {
   return onlyDigits(value)
 }
@@ -37,80 +34,120 @@ function div(a: number, b: number) {
   return Math.trunc(a / b)
 }
 
+/** سال کبیسه شمسی (الگوریتم رایج %33) */
+export function isJalaliLeap(jy: number): boolean {
+  const r = jy % 33
+  return [1, 5, 9, 13, 17, 22, 26, 30].includes(r)
+}
+
+export function jalaliMonthLength(jy: number, jm: number): number {
+  if (jm <= 6)
+    return 31
+  if (jm <= 11)
+    return 30
+  return isJalaliLeap(jy) ? 30 : 29
+}
+
+/** Gregorian Y-M-D → [jy, jm, jd] — الگوریتم استاندارد تأییدشده */
 export function gregorianToJalali(gy: number, gm: number, gd: number): [number, number, number] {
   const gdm = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]
-  let gy2 = gy - 1600
-  let gm2 = gm - 1
-  let gd2 = gd - 1
+  let jy: number
+  let gy2 = gy
 
-  let gDayNo = 365 * gy2 + div(gy2 + 3, 4) - div(gy2 + 99, 100) + div(gy2 + 399, 400) - 80 + gd2 + gdm[gm2]
-  if (gm2 > 1 && ((gy % 4 === 0 && gy % 100 !== 0) || gy % 400 === 0))
-    gDayNo += 1
+  if (gy2 > 1600) {
+    jy = 979
+    gy2 -= 1600
+  }
+  else {
+    jy = 0
+    gy2 -= 621
+  }
 
-  let jDayNo = gDayNo - 79
-  const jNp = div(jDayNo, 12053)
-  jDayNo %= 12053
-  let jy = 979 + 33 * jNp + 4 * div(jDayNo, 1461)
-  jDayNo %= 1461
+  const gy3 = gm > 2 ? gy2 + 1 : gy2
+  let days = 365 * gy2
+    + div(gy3 + 3, 4)
+    - div(gy3 + 99, 100)
+    + div(gy3 + 399, 400)
+    - 80
+    + gd
+    + gdm[gm - 1]
 
-  if (jDayNo >= 366) {
-    jy += div(jDayNo - 1, 365)
-    jDayNo = (jDayNo - 1) % 365
+  jy += 33 * div(days, 12053)
+  days %= 12053
+  jy += 4 * div(days, 1461)
+  days %= 1461
+
+  if (days > 365) {
+    jy += div(days - 1, 365)
+    days = (days - 1) % 365
   }
 
   let jm: number
   let jd: number
-  if (jDayNo < 186) {
-    jm = 1 + div(jDayNo, 31)
-    jd = 1 + (jDayNo % 31)
+  if (days < 186) {
+    jm = 1 + div(days, 31)
+    jd = 1 + (days % 31)
   }
   else {
-    jm = 7 + div(jDayNo - 186, 30)
-    jd = 1 + ((jDayNo - 186) % 30)
+    jm = 7 + div(days - 186, 30)
+    jd = 1 + ((days - 186) % 30)
   }
 
   return [jy, jm, jd]
 }
 
+/** Jalali → Gregorian */
 export function jalaliToGregorian(jy: number, jm: number, jd: number): [number, number, number] {
-  jy -= 979
-  jm -= 1
-  jd -= 1
+  let gy: number
+  let jy2 = jy
 
-  let jDayNo = 365 * jy + div(jy, 33) * 8 + div((jy % 33) + 3, 4) + 78 + jd + (jm < 7 ? jm * 31 : (jm - 7) * 30 + 186)
-  let gDayNo = jDayNo + 79
-
-  let gy = 1600 + 400 * div(gDayNo, 146097)
-  gDayNo %= 146097
-
-  let leap = true
-  if (gDayNo >= 36525) {
-    gDayNo--
-    gy += 100 * div(gDayNo, 36524)
-    gDayNo %= 36524
-    if (gDayNo >= 365)
-      gDayNo++
-    else leap = false
+  if (jy2 > 979) {
+    gy = 1600
+    jy2 -= 979
+  }
+  else {
+    gy = 621
   }
 
-  gy += 4 * div(gDayNo, 1461)
-  gDayNo %= 1461
+  let days = 365 * jy2
+    + div(jy2, 33) * 8
+    + div((jy2 % 33) + 3, 4)
+    + 78
+    + jd
+    + (jm < 7 ? (jm - 1) * 31 : (jm - 7) * 30 + 186)
 
-  if (gDayNo >= 366) {
-    leap = false
-    gDayNo--
-    gy += div(gDayNo, 365)
-    gDayNo %= 365
+  gy += 400 * div(days, 146097)
+  days %= 146097
+
+  if (days > 36524) {
+    days--
+    gy += 100 * div(days, 36524)
+    days %= 36524
+    if (days >= 365)
+      days++
   }
 
+  gy += 4 * div(days, 1461)
+  days %= 1461
+
+  if (days > 365) {
+    gy += div(days - 1, 365)
+    days = (days - 1) % 365
+  }
+
+  let gd = days + 1
+  const leap = (gy % 4 === 0 && gy % 100 !== 0) || gy % 400 === 0
   const salA = [0, 31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
   let gm = 0
-  while (gm < 13 && gDayNo >= salA[gm]) {
-    gDayNo -= salA[gm]
-    gm++
+  for (let i = 1; i <= 12; i++) {
+    if (gd <= salA[i]) {
+      gm = i
+      break
+    }
+    gd -= salA[i]
   }
 
-  return [gy, gm, gDayNo + 1]
+  return [gy, gm, gd]
 }
 
 export function formatJalaliFa(iso: string | null | undefined): string {
@@ -150,22 +187,35 @@ export function isoToJalaliParts(iso: string | null | undefined): { jy: number; 
   return { jy, jm, jd }
 }
 
-export function jalaliMonthLength(jy: number, jm: number): number {
-  if (jm <= 6)
-    return 31
-  if (jm <= 11)
-    return 30
-  // اسفند: سال کبیسه جلالی تقریبی
-  const breaks = [1, 5, 9, 13, 17, 22, 26, 30]
-  const cy = jy - 979
-  const leap = breaks.includes(cy % 33)
-  return leap ? 30 : 29
-}
-
 export function todayIso(): string {
   const d = new Date()
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
+}
+
+/** تعطیلات ثابت شمسی (ملی) — بدون اعیاد قمری متغیر */
+const FIXED_HOLIDAYS: Array<[number, number]> = [
+  [1, 1], [1, 2], [1, 3], [1, 4], // نوروز
+  [1, 12], // روز جمهوری اسلامی
+  [1, 13], // سیزده‌بدر
+  [3, 14], // رحلت امام خمینی
+  [3, 15], // قیام ۱۵ خرداد
+  [11, 22], // پیروزی انقلاب
+  [12, 29], // ملی شدن نفت
+]
+
+export function isFixedJalaliHoliday(jy: number, jm: number, jd: number): boolean {
+  void jy
+  return FIXED_HOLIDAYS.some(([m, d]) => m === jm && d === jd)
+}
+
+/** آیا این ISO در تقویم ایران جمعه است؟ */
+export function isFridayIso(iso: string): boolean {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso)
+  if (!m)
+    return false
+  const dt = new Date(+m[1], +m[2] - 1, +m[3])
+  return dt.getDay() === 5 // جمعه
 }
