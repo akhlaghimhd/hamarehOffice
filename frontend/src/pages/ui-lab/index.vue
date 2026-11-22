@@ -1,8 +1,6 @@
 <script setup lang="ts">
 /**
  * UI Lab — موقت
- * الگوی مرجع ظاهر Materio برای آموزش و یکدست‌سازی.
- * پس از تثبیت پروژه قابل حذف کامل است.
  */
 
 type LabItem = {
@@ -17,6 +15,16 @@ type LabGroup = {
 }
 
 const groups: LabGroup[] = [
+  {
+    title: 'داشبوردها',
+    items: [
+      { title: 'Analytics', to: '/ui-lab/dashboards-analytics', status: 'ready' },
+      { title: 'Ecommerce', to: '/ui-lab/dashboards-ecommerce', status: 'ready' },
+      { title: 'Academy', to: '/ui-lab/dashboards-academy', status: 'ready' },
+      { title: 'Logistics', to: '/ui-lab/dashboards-logistics', status: 'ready' },
+      { title: 'داشبورد پروژه', to: '/dashboard', status: 'partial' },
+    ],
+  },
   {
     title: 'عناصر پایه',
     items: [
@@ -71,14 +79,8 @@ const groups: LabGroup[] = [
       { title: 'جدول ساده', to: '/tables', status: 'ready' },
       { title: 'Data Table', to: '/ui-lab/data-table', status: 'ready' },
       { title: 'Apex Chart', to: '/ui-lab/apex', status: 'ready' },
-    ],
-  },
-  {
-    title: 'صفحات نمونه',
-    items: [
-      { title: 'داشبورد CRM', to: '/dashboard', status: 'partial' },
-      { title: 'Account Settings', to: '/account-settings', status: 'ready' },
       { title: 'Kanban', to: '/ui-lab/kanban', status: 'ready' },
+      { title: 'Account Settings', to: '/account-settings', status: 'ready' },
     ],
   },
 ]
@@ -100,7 +102,7 @@ const statusLabel: Record<string, string> = {
         الگوهای UI (موقت)
       </h4>
       <p class="text-body-2 text-medium-emphasis mb-0">
-        مرجع ظاهر Materio برای یکدست‌سازی فرم‌ها و صفحات پروژه. پس از تثبیت توسعه حذف می‌شود.
+        مرجع ظاهر Materio برای یکدست‌سازی. داشبوردها با تصویر ۳بعدی و انیمیشن ورودی.
       </p>
     </div>
 
@@ -125,21 +127,13 @@ const statusLabel: Record<string, string> = {
               class="mx-2 mb-1"
             >
               <template #prepend>
-                <VIcon
-                  icon="ri-layout-2-line"
-                  size="18"
-                  class="me-1"
-                />
+                <VIcon icon="ri-layout-2-line" size="18" class="me-1" />
               </template>
               <VListItemTitle class="text-body-2">
                 {{ item.title }}
               </VListItemTitle>
               <template #append>
-                <VChip
-                  :color="statusColor[item.status]"
-                  size="x-small"
-                  variant="tonal"
-                >
+                <VChip :color="statusColor[item.status]" size="x-small" variant="tonal">
                   {{ statusLabel[item.status] }}
                 </VChip>
               </template>
