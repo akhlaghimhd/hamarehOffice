@@ -36,12 +36,26 @@ const monthNames = [
 
 const weekDays = ['ش', 'ی', 'د', 'س', 'چ', 'پ', 'ج']
 
+const monthItems = monthNames.map((title, i) => ({
+  title,
+  value: i + 1,
+}))
+
+/** بازه سال‌ها: حدود ۲۰ سال قبل تا ۱۰ سال بعد نسبت به امروز شمسی */
+const yearItems = computed(() => {
+  const today = isoToJalaliParts(todayIso())
+  const center = today?.jy ?? 1404
+  const list: { title: string; value: number }[] = []
+  for (let y = center - 20; y <= center + 10; y++)
+    list.push({ title: toFaDigits(y), value: y })
+  return list
+})
+
 const days = computed(() => {
   const { jy, jm } = view.value
   const len = jalaliMonthLength(jy, jm)
   const [gy, gm, gd] = jalaliToGregorian(jy, jm, 1)
   const first = new Date(gy, gm - 1, gd)
-  // شنبه = ستون اول: JS 0=یکشنبه … 6=شنبه → offset
   const offset = (first.getDay() + 1) % 7
   const cells: Array<{ day: number | null; iso: string | null }> = []
   for (let i = 0; i < offset; i++)
@@ -66,6 +80,14 @@ function nextMonth() {
     view.value = { jy: view.value.jy + 1, jm: 1 }
   else
     view.value = { jy: view.value.jy, jm: view.value.jm + 1 }
+}
+
+function onMonthChange(jm: number) {
+  view.value = { jy: view.value.jy, jm }
+}
+
+function onYearChange(jy: number) {
+  view.value = { jy, jm: view.value.jm }
 }
 
 function pick(iso: string | null) {
@@ -113,9 +135,28 @@ const display = computed(() => formatJalaliFa(model.value))
         >
           <VIcon icon="ri-arrow-right-s-line" />
         </VBtn>
-        <span class="text-body-1 font-weight-medium">
-          {{ monthNames[view.jm - 1] }} {{ toFaDigits(view.jy) }}
-        </span>
+
+        <div class="jalali-picker__selectors">
+          <VSelect
+            :model-value="view.jm"
+            :items="monthItems"
+            density="compact"
+            hide-details
+            variant="outlined"
+            class="jalali-picker__month"
+            @update:model-value="onMonthChange"
+          />
+          <VSelect
+            :model-value="view.jy"
+            :items="yearItems"
+            density="compact"
+            hide-details
+            variant="outlined"
+            class="jalali-picker__year"
+            @update:model-value="onYearChange"
+          />
+        </div>
+
         <VBtn
           icon
           variant="text"
@@ -175,8 +216,8 @@ const display = computed(() => formatJalaliFa(model.value))
 
 <style scoped>
 .jalali-picker {
-  width: 280px;
-  max-width: 90vw;
+  width: 300px;
+  max-width: 92vw;
   padding: 8px 10px 6px;
 }
 
@@ -184,7 +225,25 @@ const display = computed(() => formatJalaliFa(model.value))
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 4px;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.jalali-picker__selectors {
+  display: flex;
+  flex: 1;
+  gap: 6px;
+  min-width: 0;
+}
+
+.jalali-picker__month {
+  flex: 1.4;
+  min-width: 0;
+}
+
+.jalali-picker__year {
+  flex: 1;
+  min-width: 0;
 }
 
 .jalali-picker__week,
@@ -209,7 +268,7 @@ const display = computed(() => formatJalaliFa(model.value))
   font-size: 0.875rem;
   cursor: pointer;
   color: inherit;
-  min-height: 36px;
+  min-height: 34px;
   padding: 0;
 }
 
@@ -217,7 +276,7 @@ const display = computed(() => formatJalaliFa(model.value))
   cursor: default;
   font-size: 0.75rem;
   opacity: 0.65;
-  min-height: 28px;
+  min-height: 26px;
 }
 
 .jalali-picker__cell--empty {
