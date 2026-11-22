@@ -61,11 +61,26 @@ class OpportunityService
         return DB::transaction(function () use ($companyId, $userId, $data) {
             $stageId = $data['stage_id'] ?? $this->defaultStageId($companyId);
 
+            $products = array_values(array_filter(
+                $data['products'] ?? [],
+                fn ($p) => is_string($p) && trim($p) !== ''
+            ));
+
+            if (empty($products) && ! empty($data['product_name'])) {
+                $products = [trim((string) $data['product_name'])];
+            }
+
+            $productName = $products[0] ?? null;
+            if (count($products) > 1) {
+                $productName = implode('، ', $products);
+            }
+
             $opp = Opportunity::query()->create([
                 'company_id' => $companyId,
                 'code' => $this->nextCode($companyId),
                 'organization_name' => $data['organization_name'],
-                'product_name' => $data['product_name'] ?? null,
+                'product_name' => $productName,
+                'products' => $products,
                 'contact_name' => $data['contact_name'] ?? null,
                 'contact_mobile' => $data['contact_mobile'] ?? null,
                 'contact_phone' => $data['contact_phone'] ?? null,
