@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { useRoute, useRouter } from 'vue-router'
+import { useMobileChrome } from '@/composables/useMobileChrome'
 
 const route = useRoute()
 const router = useRouter()
+const { bottomNavVisible } = useMobileChrome()
 
 const items = [
   { title: 'خانه', icon: 'ri-home-smile-line', to: '/dashboard' },
@@ -23,7 +25,10 @@ function go(to: string) {
 </script>
 
 <template>
-  <nav class="mobile-bottom-nav d-lg-none">
+  <nav
+    v-show="bottomNavVisible"
+    class="mobile-bottom-nav d-lg-none"
+  >
     <button
       v-for="item in items"
       :key="item.to"
