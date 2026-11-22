@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import VueApexCharts from 'vue3-apexcharts'
+
 const series = [{ data: [28, 40, 36, 52, 38, 60, 55] }]
 const chartOptions = {
   chart: { type: 'area', toolbar: { show: false }, sparkline: { enabled: true } },
