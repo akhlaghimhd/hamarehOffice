@@ -90,13 +90,13 @@ const roleLabel: Record<string, string> = {
 
 <template>
   <div>
-    <div class="d-flex flex-wrap align-center justify-space-between gap-4 mb-6">
+    <div class="d-flex flex-wrap align-center justify-space-between gap-4 mb-4 mb-md-6">
       <div>
         <h4 class="text-h4 mb-1">
           طرف‌های تجاری
         </h4>
-        <p class="text-body-1 text-medium-emphasis mb-0">
-          مشتری، تأمین‌کننده، پیمانکار و سایر نقش‌ها · {{ toFaDigits(items.length) }} مورد
+        <p class="text-body-2 text-medium-emphasis mb-0">
+          مشتری، تأمین‌کننده، پیمانکار · {{ toFaDigits(items.length) }} مورد
         </p>
       </div>
       <VBtn
@@ -108,7 +108,8 @@ const roleLabel: Record<string, string> = {
       </VBtn>
     </div>
 
-    <VCard>
+    <!-- دسکتاپ: جدول -->
+    <VCard class="d-none d-md-block">
       <VDataTable
         :headers="[
           { title: 'نام', key: 'party.name' },
@@ -142,6 +143,56 @@ const roleLabel: Record<string, string> = {
         <template #bottom />
       </VDataTable>
     </VCard>
+
+    <!-- موبایل: کارت -->
+    <div class="d-md-none">
+      <div
+        v-if="loading"
+        class="text-center py-8 text-medium-emphasis"
+      >
+        در حال بارگذاری...
+      </div>
+      <div
+        v-else-if="!items.length"
+        class="text-center py-8 text-medium-emphasis"
+      >
+        داده‌ای نیست
+      </div>
+      <VCard
+        v-for="item in items"
+        :key="item.id"
+        class="mb-3"
+      >
+        <VCardText class="pa-4">
+          <div class="d-flex align-start justify-space-between gap-2 mb-2">
+            <div>
+              <div class="text-subtitle-1 font-weight-medium">
+                {{ item.party?.name }}
+              </div>
+              <div class="text-caption text-medium-emphasis">
+                {{ item.party?.type === 'person' ? 'حقیقی' : 'حقوقی' }}
+              </div>
+            </div>
+            <VChip
+              size="small"
+              color="primary"
+              variant="tonal"
+            >
+              {{ roleLabel[item.role] || item.role }}
+            </VChip>
+          </div>
+          <div class="text-body-2">
+            <span class="text-medium-emphasis">تلفن: </span>{{ toFaDigits(item.party?.phone || '—') }}
+          </div>
+          <div
+            v-if="item.party?.email"
+            class="text-body-2"
+          >
+            <span class="text-medium-emphasis">ایمیل: </span>{{ item.party.email }}
+          </div>
+        </VCardText>
+      </VCard>
+    </div>
 
     <FormDrawer
       v-model="drawerOpen"
