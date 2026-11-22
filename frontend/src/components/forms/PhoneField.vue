@@ -39,7 +39,5 @@ const fieldRules = computed(() => {
     autocomplete="tel"
     :rules="fieldRules"
     maxlength="11"
-    hint="۱۱ رقم"
-    persistent-hint
   />
 </template>
