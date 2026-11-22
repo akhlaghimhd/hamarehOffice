@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import AppNotify from '@/components/forms/AppNotify.vue'
 </script>
 
 <template>
   <VApp>
     <RouterView />
-      </VApp>
+    <AppNotify />
+  </VApp>
 </template>
