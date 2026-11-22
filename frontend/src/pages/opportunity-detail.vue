@@ -1,31 +1,39 @@
 <script setup lang="ts">
 import { useRoute, useRouter } from 'vue-router'
+import FormDrawer from '@/components/forms/FormDrawer.vue'
+import JalaliDateField from '@/components/forms/JalaliDateField.vue'
+import { useNotify } from '@/composables/useNotify'
 import {
   closeOpportunityStep,
   fetchOpportunity,
   fetchOpportunityStages,
   getCompany,
 } from '@/utils/api'
-import { formatJalaliFa, jalaliInputToIso, toFaDigits } from '@/utils/fa'
+import { formatJalaliFa, toFaDigits } from '@/utils/fa'
+import { rules } from '@/utils/formRules'
 
 const route = useRoute()
 const router = useRouter()
+const { success, error: notifyError } = useNotify()
 const id = computed(() => Number(route.params.id))
 
 const item = ref<any | null>(null)
 const stages = ref<any[]>([])
 const loading = ref(false)
-const errorMessage = ref('')
 const closeOpen = ref(false)
 const closing = ref(false)
+const formRef = ref()
+const dirty = ref(false)
 
 const closeForm = ref({
   result: '',
   stage_id: null as number | null,
   status: 'active',
   next_step_title: '',
-  next_step_due_on_jalali: '',
+  next_step_due_on: null as string | null,
 })
+
+watch(closeForm, () => { dirty.value = true }, { deep: true })
 
 const statusLabel: Record<string, string> = {
   active: 'فعال',
@@ -47,7 +55,7 @@ const productList = computed(() => {
 
 async function load() {
   if (!getCompany()?.id) {
-    errorMessage.value = 'شرکت جاری مشخص نشده است.'
+    notifyError('شرکت جاری مشخص نشده است.')
     return
   }
   loading.value = true
@@ -60,34 +68,47 @@ async function load() {
     stages.value = (stageRes.data || []).map((s: any) => ({ title: s.name, value: s.id }))
     closeForm.value.stage_id = res.data?.stage?.id ?? null
     closeForm.value.status = res.data?.status || 'active'
+    dirty.value = false
   }
   catch (e: any) {
-    errorMessage.value = e?.message || 'خطا'
+    notifyError(e?.message || 'خطا در بارگذاری فرصت')
   }
   finally {
     loading.value = false
   }
 }
 
+function openClose() {
+  closeForm.value.result = ''
+  closeForm.value.next_step_title = ''
+  closeForm.value.next_step_due_on = null
+  closeForm.value.stage_id = item.value?.stage?.id ?? null
+  closeForm.value.status = item.value?.status || 'active'
+  dirty.value = false
+  closeOpen.value = true
+}
+
 async function submitClose() {
+  const { valid } = await formRef.value?.validate?.() ?? { valid: true }
+  if (!valid)
+    return
+
   closing.value = true
-  errorMessage.value = ''
   try {
     const res = await closeOpportunityStep(id.value, {
       result: closeForm.value.result,
       stage_id: closeForm.value.stage_id,
       status: closeForm.value.status,
       next_step_title: closeForm.value.next_step_title || null,
-      next_step_due_on: jalaliInputToIso(closeForm.value.next_step_due_on_jalali),
+      next_step_due_on: closeForm.value.next_step_due_on,
     })
     item.value = res.data
+    dirty.value = false
     closeOpen.value = false
-    closeForm.value.result = ''
-    closeForm.value.next_step_title = ''
-    closeForm.value.next_step_due_on_jalali = ''
+    success('گام بسته شد')
   }
   catch (e: any) {
-    errorMessage.value = e?.message || 'بستن گام ناموفق'
+    notifyError(e?.message || 'بستن گام ناموفق')
   }
   finally {
     closing.value = false
@@ -103,6 +124,7 @@ onMounted(load)
       <div>
         <VBtn
           variant="text"
+          color="secondary"
           size="small"
           class="mb-2"
           @click="router.push('/opportunities')"
@@ -142,24 +164,9 @@ onMounted(load)
       </div>
     </div>
 
-    <VAlert
-      v-if="errorMessage"
-      type="error"
-      variant="tonal"
-      class="mb-4"
-    >
-      {{ errorMessage }}
-    </VAlert>
-
     <VRow>
-      <VCol
-        cols="12"
-        md="4"
-      >
-        <VCard
-          class="mb-4"
-          title="مخاطب"
-        >
+      <VCol cols="12" md="4">
+        <VCard class="mb-4" title="مخاطب">
           <VCardText>
             <div class="text-h6">
               {{ item.contact_name || '—' }}
@@ -207,10 +214,7 @@ onMounted(load)
         </VCard>
       </VCol>
 
-      <VCol
-        cols="12"
-        md="8"
-      >
+      <VCol cols="12" md="8">
         <VCard class="mb-4">
           <VCardItem>
             <VCardTitle>گام جاری</VCardTitle>
@@ -225,7 +229,7 @@ onMounted(load)
               </div>
               <VBtn
                 color="primary"
-                @click="closeOpen = true"
+                @click="openClose"
               >
                 بستن گام
               </VBtn>
@@ -241,10 +245,7 @@ onMounted(load)
 
         <VCard title="گام‌های قبلی">
           <VCardText>
-            <VTimeline
-              density="compact"
-              side="end"
-            >
+            <VTimeline density="compact" side="end">
               <VTimelineItem
                 v-for="s in (item.steps || []).filter((x: any) => x.status === 'closed')"
                 :key="s.id"
@@ -276,67 +277,70 @@ onMounted(load)
       </VCol>
     </VRow>
 
-    <VDialog
+    <FormDrawer
       v-model="closeOpen"
-      max-width="560"
+      title="بستن گام"
+      subtitle="نتیجه و گام بعدی را مشخص کنید"
+      :dirty="dirty"
+      :width="480"
     >
-      <VCard title="بستن گام">
-        <VCardText>
-          <VTextarea
-            v-model="closeForm.result"
-            label="نتیجه این گام *"
-            rows="3"
-            class="mb-3"
-          />
-          <VSelect
-            v-model="closeForm.stage_id"
-            :items="stages"
-            label="مرحله قیف"
-            class="mb-3"
-          />
-          <VSelect
-            v-model="closeForm.status"
-            :items="[
-              { title: 'فعال', value: 'active' },
-              { title: 'در حال پرورش', value: 'nurturing' },
-              { title: 'متوقف موقت', value: 'paused' },
-              { title: 'بسته‌شده-موفق', value: 'won' },
-              { title: 'بسته‌شده-ناموفق', value: 'lost' },
-            ]"
-            label="وضعیت فرصت"
-            class="mb-3"
-          />
-          <VTextField
-            v-model="closeForm.next_step_title"
-            label="گام بعدی (اختیاری)"
-            class="mb-3"
-          />
-          <VTextField
-            v-model="closeForm.next_step_due_on_jalali"
-            label="مهلت گام بعدی (شمسی)"
-            placeholder="۱۴۰۴/۰۹/۱۵"
-            hint="سال/ماه/روز شمسی"
-            persistent-hint
-          />
-        </VCardText>
-        <VCardActions>
-          <VSpacer />
-          <VBtn
-            variant="text"
-            @click="closeOpen = false"
-          >
-            انصراف
-          </VBtn>
-          <VBtn
-            color="primary"
-            :loading="closing"
-            @click="submitClose"
-          >
-            بستن گام
-          </VBtn>
-        </VCardActions>
-      </VCard>
-    </VDialog>
+      <VForm
+        ref="formRef"
+        @submit.prevent="submitClose"
+      >
+        <VTextarea
+          v-model="closeForm.result"
+          label="نتیجه این گام"
+          rows="3"
+          class="mb-3"
+          :rules="[rules.required('نتیجه')]"
+        />
+        <VSelect
+          v-model="closeForm.stage_id"
+          :items="stages"
+          label="مرحله قیف"
+          class="mb-3"
+        />
+        <VSelect
+          v-model="closeForm.status"
+          :items="[
+            { title: 'فعال', value: 'active' },
+            { title: 'در حال پرورش', value: 'nurturing' },
+            { title: 'متوقف موقت', value: 'paused' },
+            { title: 'بسته‌شده-موفق', value: 'won' },
+            { title: 'بسته‌شده-ناموفق', value: 'lost' },
+          ]"
+          label="وضعیت فرصت"
+          class="mb-3"
+        />
+        <VTextField
+          v-model="closeForm.next_step_title"
+          label="گام بعدی (اختیاری)"
+          class="mb-3"
+        />
+        <JalaliDateField
+          v-model="closeForm.next_step_due_on"
+          label="مهلت گام بعدی"
+        />
+      </VForm>
+
+      <template #actions>
+        <VBtn
+          variant="text"
+          color="secondary"
+          @click="closeOpen = false"
+        >
+          انصراف
+        </VBtn>
+        <VBtn
+          color="primary"
+          :loading="closing"
+          @click="submitClose"
+        >
+          بستن گام
+        </VBtn>
+      </template>
+    </FormDrawer>
   </div>
   <div v-else-if="loading">
     در حال بارگذاری...
