@@ -3,29 +3,66 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\CompanyPartyRole;
 use App\Models\Opportunity;
-use App\Models\OpportunityActivity;
 use App\Models\OpportunityStage;
+use App\Models\OpportunityStep;
+use App\Services\OpportunityService;
 use App\Support\CompanyContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class OpportunityController extends Controller
 {
-    public function index(CompanyContext $context): JsonResponse
+    public function __construct(private OpportunityService $service) {}
+
+    public function index(Request $request, CompanyContext $context): JsonResponse
     {
         $companyId = $context->check();
 
-        $items = Opportunity::query()
-            ->with(['party:id,name,type', 'stage:id,name,code'])
-            ->where('company_id', $companyId)
-            ->orderByDesc('id')
-            ->limit(100)
-            ->get()
-            ->map(fn (Opportunity $o) => $this->serialize($o));
+        $q = Opportunity::query()
+            ->with(['stage:id,name,code', 'owner:id,name', 'assignee:id,name', 'currentStep'])
+            ->where('company_id', $companyId);
+
+        if ($status = $request->query('status')) {
+            $q->where('status', $status);
+        }
+        if ($stageId = $request->query('stage_id')) {
+            $q->where('stage_id', $stageId);
+        }
+        if ($search = $request->query('q')) {
+            $q->where(function ($qq) use ($search) {
+                $qq->where('organization_name', 'like', "%{$search}%")
+                    ->orWhere('code', 'like', "%{$search}%")
+                    ->orWhere('contact_name', 'like', "%{$search}%");
+            });
+        }
+
+        $items = $q->orderByDesc('id')->limit(100)->get()->map(fn (Opportunity $o) => $this->listItem($o));
 
         return response()->json(['data' => $items]);
+    }
+
+    public function store(Request $request, CompanyContext $context): JsonResponse
+    {
+        $companyId = $context->check();
+
+        $data = $request->validate([
+            'organization_name' => ['required', 'string', 'max:255'],
+            'product_name' => ['nullable', 'string', 'max:255'],
+            'contact_name' => ['nullable', 'string', 'max:255'],
+            'contact_mobile' => ['nullable', 'string', 'max:32'],
+            'contact_phone' => ['nullable', 'string', 'max:32'],
+            'next_step' => ['required', 'string', 'max:500'],
+            'next_step_due_on' => ['nullable', 'date'],
+            'stage_id' => ['nullable', 'integer'],
+            'status' => ['nullable', 'in:active,nurturing,paused,won,lost'],
+            'opening_note' => ['nullable', 'string'],
+            'assignee_user_id' => ['nullable', 'integer'],
+        ]);
+
+        $opp = $this->service->createQuick($companyId, $request->user()->id, $data);
+
+        return response()->json(['data' => $this->listItem($opp)], 201);
     }
 
     public function show(int $id, CompanyContext $context): JsonResponse
@@ -34,163 +71,46 @@ class OpportunityController extends Controller
 
         $opp = Opportunity::query()
             ->with([
-                'party:id,name,type,phone,email',
-                'stage:id,name,code',
+                'stage',
+                'owner:id,name',
+                'assignee:id,name',
+                'steps' => fn ($q) => $q->orderBy('sort_order'),
                 'activities' => fn ($q) => $q->orderByDesc('happened_at')->limit(50),
+                'referrals' => fn ($q) => $q->orderByDesc('id')->limit(20),
             ])
             ->where('company_id', $companyId)
             ->findOrFail($id);
 
-        return response()->json([
-            'data' => array_merge($this->serialize($opp), [
-                'need_summary' => $opp->need_summary,
-                'activities' => $opp->activities->map(fn (OpportunityActivity $a) => [
-                    'id' => $a->id,
-                    'type' => $a->type,
-                    'subject' => $a->subject,
-                    'body' => $a->body,
-                    'happened_at' => $a->happened_at?->toIso8601String(),
-                ]),
-            ]),
-        ]);
+        return response()->json(['data' => $this->detail($opp)]);
     }
 
-    public function store(Request $request, CompanyContext $context): JsonResponse
+    public function closeStep(Request $request, int $id, CompanyContext $context): JsonResponse
     {
         $companyId = $context->check();
 
         $data = $request->validate([
-            'title' => ['required', 'string', 'max:255'],
-            'party_id' => ['required', 'integer'],
+            'result' => ['required', 'string'],
             'stage_id' => ['nullable', 'integer'],
-            'amount' => ['nullable', 'numeric', 'min:0'],
-            'need_summary' => ['nullable', 'string'],
-            'next_step' => ['nullable', 'string', 'max:255'],
+            'status' => ['nullable', 'in:active,nurturing,paused,won,lost'],
+            'next_step_title' => ['nullable', 'string', 'max:500'],
+            'next_step_due_on' => ['nullable', 'date'],
+            'assignee_user_id' => ['nullable', 'integer'],
         ]);
 
-        $partyOk = CompanyPartyRole::query()
-            ->where('company_id', $companyId)
-            ->where('party_id', $data['party_id'])
-            ->where('is_active', true)
-            ->exists();
-
-        if (! $partyOk) {
-            return response()->json(['message' => 'طرف تجاری در این شرکت معتبر نیست.'], 422);
-        }
-
-        $stage = null;
-        if (! empty($data['stage_id'])) {
-            $stage = OpportunityStage::query()
-                ->where('company_id', $companyId)
-                ->where('id', $data['stage_id'])
-                ->first();
-        }
-
-        if (! $stage) {
-            $stage = OpportunityStage::query()
-                ->where('company_id', $companyId)
-                ->where('is_active', true)
-                ->orderBy('sort_order')
-                ->first();
-        }
-
-        if (! $stage) {
-            return response()->json(['message' => 'مرحله فرصت برای شرکت تعریف نشده است.'], 422);
-        }
-
-        $status = 'open';
-        if ($stage->is_won) {
-            $status = 'won';
-        } elseif ($stage->is_lost) {
-            $status = 'lost';
-        }
-
-        $opp = Opportunity::query()->create([
-            'company_id' => $companyId,
-            'party_id' => $data['party_id'],
-            'stage_id' => $stage->id,
-            'title' => $data['title'],
-            'amount' => $data['amount'] ?? null,
-            'need_summary' => $data['need_summary'] ?? null,
-            'next_step' => $data['next_step'] ?? null,
-            'owner_user_id' => $request->user()->id,
-            'status' => $status,
-        ]);
-
-        $opp->load(['party:id,name', 'stage:id,name,code']);
-
-        return response()->json(['data' => $this->serialize($opp)], 201);
-    }
-
-    public function updateStage(Request $request, int $id, CompanyContext $context): JsonResponse
-    {
-        $companyId = $context->check();
-
-        $data = $request->validate([
-            'stage_id' => ['required', 'integer'],
-            'next_step' => ['nullable', 'string', 'max:255'],
-        ]);
-
-        $opp = Opportunity::query()
-            ->where('company_id', $companyId)
-            ->findOrFail($id);
-
-        $stage = OpportunityStage::query()
-            ->where('company_id', $companyId)
-            ->where('id', $data['stage_id'])
+        $opp = Opportunity::query()->where('company_id', $companyId)->findOrFail($id);
+        $step = OpportunityStep::query()
+            ->where('opportunity_id', $opp->id)
+            ->where('is_current', true)
+            ->where('status', 'open')
             ->firstOrFail();
 
-        $status = 'open';
-        if ($stage->is_won) {
-            $status = 'won';
-        } elseif ($stage->is_lost) {
-            $status = 'lost';
-        }
+        $opp = $this->service->closeStep($opp, $step, $data, $request->user()->id);
 
-        $opp->update([
-            'stage_id' => $stage->id,
-            'status' => $status,
-            'next_step' => $data['next_step'] ?? $opp->next_step,
-        ]);
-
-        $opp->load(['party:id,name', 'stage:id,name,code']);
-
-        return response()->json(['data' => $this->serialize($opp)]);
-    }
-
-    public function storeActivity(Request $request, int $id, CompanyContext $context): JsonResponse
-    {
-        $companyId = $context->check();
-
-        $opp = Opportunity::query()
-            ->where('company_id', $companyId)
-            ->findOrFail($id);
-
-        $data = $request->validate([
-            'type' => ['nullable', 'in:note,call,meeting,task'],
-            'subject' => ['nullable', 'string', 'max:255'],
-            'body' => ['required', 'string'],
-        ]);
-
-        $activity = OpportunityActivity::query()->create([
-            'company_id' => $companyId,
-            'opportunity_id' => $opp->id,
-            'user_id' => $request->user()->id,
-            'type' => $data['type'] ?? 'note',
-            'subject' => $data['subject'] ?? null,
-            'body' => $data['body'],
-            'happened_at' => now(),
-        ]);
-
-        return response()->json([
-            'data' => [
-                'id' => $activity->id,
-                'type' => $activity->type,
-                'subject' => $activity->subject,
-                'body' => $activity->body,
-                'happened_at' => $activity->happened_at?->toIso8601String(),
-            ],
-        ], 201);
+        return response()->json(['data' => $this->detail($opp->load([
+            'stage', 'owner:id,name', 'assignee:id,name',
+            'steps' => fn ($q) => $q->orderBy('sort_order'),
+            'activities' => fn ($q) => $q->orderByDesc('happened_at')->limit(50),
+        ]))]);
     }
 
     public function stages(CompanyContext $context): JsonResponse
@@ -206,23 +126,48 @@ class OpportunityController extends Controller
         return response()->json(['data' => $stages]);
     }
 
-    private function serialize(Opportunity $o): array
+    private function listItem(Opportunity $o): array
     {
         return [
             'id' => $o->id,
-            'title' => $o->title,
-            'amount' => $o->amount,
+            'code' => $o->code,
+            'organization_name' => $o->organization_name,
+            'product_name' => $o->product_name,
             'status' => $o->status,
             'next_step' => $o->next_step,
-            'party' => $o->party ? [
-                'id' => $o->party->id,
-                'name' => $o->party->name,
-            ] : null,
-            'stage' => $o->stage ? [
-                'id' => $o->stage->id,
-                'name' => $o->stage->name,
-                'code' => $o->stage->code,
+            'next_step_due_on' => $o->next_step_due_on?->format('Y-m-d'),
+            'stage' => $o->stage ? ['id' => $o->stage->id, 'name' => $o->stage->name, 'code' => $o->stage->code] : null,
+            'owner' => $o->owner ? ['id' => $o->owner->id, 'name' => $o->owner->name] : null,
+            'assignee' => $o->assignee ? ['id' => $o->assignee->id, 'name' => $o->assignee->name] : null,
+            'current_step' => $o->currentStep ? [
+                'id' => $o->currentStep->id,
+                'title' => $o->currentStep->title,
+                'due_on' => $o->currentStep->due_on?->format('Y-m-d'),
             ] : null,
         ];
+    }
+
+    private function detail(Opportunity $o): array
+    {
+        return array_merge($this->listItem($o), [
+            'contact_name' => $o->contact_name,
+            'contact_role' => $o->contact_role,
+            'contact_mobile' => $o->contact_mobile,
+            'contact_phone' => $o->contact_phone,
+            'contact_email' => $o->contact_email,
+            'address' => $o->address,
+            'application_need' => $o->application_need,
+            'tirage' => $o->tirage,
+            'budget_band' => $o->budget_band,
+            'opening_note' => $o->opening_note,
+            'steps' => $o->steps?->map(fn ($s) => [
+                'id' => $s->id,
+                'title' => $s->title,
+                'due_on' => $s->due_on?->format('Y-m-d'),
+                'status' => $s->status,
+                'result' => $s->result,
+                'is_current' => $s->is_current,
+            ])->values() ?? [],
+        ]);
     }
 }

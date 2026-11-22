@@ -3,12 +3,10 @@
 namespace Database\Seeders;
 
 use App\Models\Company;
-use App\Models\CompanyPartyRole;
 use App\Models\CompanySetting;
 use App\Models\CompanyUser;
 use App\Models\NumberSequence;
 use App\Models\OpportunityStage;
-use App\Models\Party;
 use App\Models\Permission;
 use App\Models\PlatformOwner;
 use App\Models\Role;
@@ -24,21 +22,15 @@ class FoundationSeeder extends Seeder
     {
         $company = Company::query()->updateOrCreate(
             ['code' => 'HAMAREH'],
-            [
-                'name' => 'هوشمند آرمان هماره',
-                'is_active' => true,
-            ],
+            ['name' => 'هوشمند آرمان هماره', 'is_active' => true],
         );
 
-        NumberSequence::query()->updateOrCreate(
-            ['company_id' => $company->id, 'document_type' => 'quote'],
-            ['prefix' => 'Q', 'next_number' => 1, 'padding' => 5, 'reset_policy' => 'never'],
-        );
-
-        NumberSequence::query()->updateOrCreate(
-            ['company_id' => $company->id, 'document_type' => 'order'],
-            ['prefix' => 'O', 'next_number' => 1, 'padding' => 5, 'reset_policy' => 'never'],
-        );
+        foreach (['quote' => 'Q', 'order' => 'O', 'opportunity' => 'OPP-'] as $type => $prefix) {
+            NumberSequence::query()->updateOrCreate(
+                ['company_id' => $company->id, 'document_type' => $type],
+                ['prefix' => $prefix, 'next_number' => 1, 'padding' => $type === 'opportunity' ? 3 : 5, 'reset_policy' => 'never'],
+            );
+        }
 
         foreach ([
             ['key' => 'locale', 'value' => 'fa'],
@@ -69,14 +61,11 @@ class FoundationSeeder extends Seeder
                 ['name' => 'dashboard.view'],
                 ['group' => 'general', 'label' => 'مشاهده داشبورد'],
             );
-
             $role = Role::query()->updateOrCreate(
                 ['company_id' => $company->id, 'name' => 'admin'],
                 ['label' => 'مدیر شرکت', 'is_system' => true],
             );
-
             $role->permissions()->syncWithoutDetaching([$perm->id]);
-
             if ($membership && Schema::hasTable('company_user_role')) {
                 DB::table('company_user_role')->updateOrInsert(
                     ['company_user_id' => $membership->id, 'role_id' => $role->id],
@@ -92,50 +81,28 @@ class FoundationSeeder extends Seeder
             );
         }
 
-        // مراحل فرصت پیش‌فرض
+        // قیف فروش مطابق سیستم قبلی
         if (Schema::hasTable('opportunity_stages')) {
             $stages = [
-                ['code' => 'lead', 'name' => 'سرنخ', 'sort_order' => 10],
-                ['code' => 'qualified', 'name' => 'واجد شرایط', 'sort_order' => 20],
-                ['code' => 'proposal', 'name' => 'پیشنهاد', 'sort_order' => 30],
-                ['code' => 'negotiation', 'name' => 'مذاکره', 'sort_order' => 40],
-                ['code' => 'won', 'name' => 'برنده', 'sort_order' => 50, 'is_won' => true],
-                ['code' => 'lost', 'name' => 'باخته', 'sort_order' => 60, 'is_lost' => true],
+                ['code' => 'initial_lead', 'name' => 'سرنخ اولیه', 'sort_order' => 10],
+                ['code' => 'quick_qualify', 'name' => 'احراز صلاحیت سریع', 'sort_order' => 20],
+                ['code' => 'need_discovery', 'name' => 'کشف نیاز', 'sort_order' => 30],
+                ['code' => 'product_demo', 'name' => 'نمایش محصول', 'sort_order' => 40],
+                ['code' => 'commercial_proposal', 'name' => 'ارائه پیشنهاد تجاری', 'sort_order' => 50],
+                ['code' => 'negotiate_close', 'name' => 'مذاکره و بستن', 'sort_order' => 60],
             ];
-
             foreach ($stages as $stage) {
                 OpportunityStage::query()->updateOrCreate(
                     ['company_id' => $company->id, 'code' => $stage['code']],
                     [
                         'name' => $stage['name'],
                         'sort_order' => $stage['sort_order'],
-                        'is_won' => $stage['is_won'] ?? false,
-                        'is_lost' => $stage['is_lost'] ?? false,
+                        'is_won' => false,
+                        'is_lost' => false,
                         'is_active' => true,
                     ],
                 );
             }
-        }
-
-        // طرف تجاری نمونه
-        if (Schema::hasTable('parties')) {
-            $party = Party::query()->updateOrCreate(
-                ['name' => 'شرکت نمونه مشتری', 'type' => 'organization'],
-                [
-                    'phone' => '02100000000',
-                    'email' => 'customer@example.com',
-                    'is_active' => true,
-                ],
-            );
-
-            CompanyPartyRole::query()->updateOrCreate(
-                [
-                    'company_id' => $company->id,
-                    'party_id' => $party->id,
-                    'role' => 'customer',
-                ],
-                ['is_active' => true],
-            );
         }
     }
 }

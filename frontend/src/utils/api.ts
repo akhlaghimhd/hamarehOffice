@@ -125,8 +125,9 @@ export async function createParty(payload: Record<string, unknown>) {
   })
 }
 
-export async function fetchOpportunities() {
-  return api<{ data: any[] }>('/api/opportunities')
+export async function fetchOpportunities(query = '') {
+  const q = query ? `?${query}` : ''
+  return api<{ data: any[] }>(`/api/opportunities${q}`)
 }
 
 export async function createOpportunity(payload: Record<string, unknown>) {
@@ -140,15 +141,8 @@ export async function fetchOpportunity(id: number) {
   return api<{ data: any }>(`/api/opportunities/${id}`)
 }
 
-export async function updateOpportunityStage(id: number, stageId: number, nextStep?: string) {
-  return api<{ data: any }>(`/api/opportunities/${id}/stage`, {
-    method: 'PATCH',
-    body: JSON.stringify({ stage_id: stageId, next_step: nextStep }),
-  })
-}
-
-export async function createOpportunityActivity(id: number, payload: Record<string, unknown>) {
-  return api<{ data: any }>(`/api/opportunities/${id}/activities`, {
+export async function closeOpportunityStep(id: number, payload: Record<string, unknown>) {
+  return api<{ data: any }>(`/api/opportunities/${id}/close-step`, {
     method: 'POST',
     body: JSON.stringify(payload),
   })

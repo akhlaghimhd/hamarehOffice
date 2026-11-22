@@ -1,33 +1,54 @@
 <script setup lang="ts">
+import { useRouter } from 'vue-router'
 import {
   createOpportunity,
-  createOpportunityActivity,
   fetchOpportunities,
   fetchOpportunityStages,
-  fetchParties,
   getCompany,
-  updateOpportunityStage,
 } from '@/utils/api'
 
+const router = useRouter()
 const items = ref<any[]>([])
-const parties = ref<any[]>([])
 const stages = ref<any[]>([])
 const loading = ref(false)
 const saving = ref(false)
 const errorMessage = ref('')
-const dialog = ref(false)
-const detailDialog = ref(false)
-const selected = ref<any | null>(null)
-const noteBody = ref('')
-const noteSaving = ref(false)
+const quickOpen = ref(false)
+
+const filters = ref({
+  status: '',
+  stage_id: '',
+  q: '',
+})
 
 const form = ref({
-  title: '',
-  party_id: null as number | null,
-  amount: null as number | null,
+  organization_name: '',
+  product_name: 'نوتوپیا',
+  contact_name: '',
+  contact_mobile: '',
+  contact_phone: '',
   next_step: '',
-  need_summary: '',
+  next_step_due_on: '',
 })
+
+const statusItems = [
+  { title: 'همه وضعیت‌ها', value: '' },
+  { title: 'فعال', value: 'active' },
+  { title: 'در حال پرورش', value: 'nurturing' },
+  { title: 'متوقف موقت', value: 'paused' },
+  { title: 'بسته‌شده-موفق', value: 'won' },
+  { title: 'بسته‌شده-ناموفق', value: 'lost' },
+]
+
+const statusLabel: Record<string, string> = {
+  active: 'فعال',
+  nurturing: 'در حال پرورش',
+  paused: 'متوقف موقت',
+  won: 'بسته‌شده-موفق',
+  lost: 'بسته‌شده-ناموفق',
+}
+
+const productItems = ['نوتوپیا', 'سایر']
 
 async function load() {
   if (!getCompany()?.id) {
@@ -37,19 +58,20 @@ async function load() {
   loading.value = true
   errorMessage.value = ''
   try {
-    const [oppRes, partyRes, stageRes] = await Promise.all([
-      fetchOpportunities(),
-      fetchParties(),
+    const params = new URLSearchParams()
+    if (filters.value.status) params.set('status', filters.value.status)
+    if (filters.value.stage_id) params.set('stage_id', String(filters.value.stage_id))
+    if (filters.value.q) params.set('q', filters.value.q)
+
+    const [oppRes, stageRes] = await Promise.all([
+      fetchOpportunities(params.toString()),
       fetchOpportunityStages(),
     ])
     items.value = oppRes.data || []
-    parties.value = (partyRes.data || [])
-      .map((r: any) => ({ title: r.party?.name, value: r.party?.id }))
-      .filter((p: any) => p.value)
-    stages.value = (stageRes.data || []).map((s: any) => ({
-      title: s.name,
-      value: s.id,
-    }))
+    stages.value = [
+      { title: 'همه مراحل', value: '' },
+      ...(stageRes.data || []).map((s: any) => ({ title: s.name, value: s.id })),
+    ]
   }
   catch (e: any) {
     errorMessage.value = e?.message || 'خطا در دریافت'
@@ -59,66 +81,30 @@ async function load() {
   }
 }
 
-async function save() {
-  if (!form.value.party_id) {
-    errorMessage.value = 'طرف تجاری را انتخاب کنید.'
-    return
-  }
+async function saveQuick() {
   saving.value = true
   errorMessage.value = ''
   try {
-    await createOpportunity({
-      title: form.value.title,
-      party_id: form.value.party_id,
-      amount: form.value.amount,
-      next_step: form.value.next_step,
-      need_summary: form.value.need_summary,
-    })
-    dialog.value = false
-    form.value = { title: '', party_id: null, amount: null, next_step: '', need_summary: '' }
+    const res = await createOpportunity({ ...form.value })
+    quickOpen.value = false
+    form.value = {
+      organization_name: '',
+      product_name: 'نوتوپیا',
+      contact_name: '',
+      contact_mobile: '',
+      contact_phone: '',
+      next_step: '',
+      next_step_due_on: '',
+    }
     await load()
+    if (res.data?.id)
+      router.push(`/opportunities/${res.data.id}`)
   }
   catch (e: any) {
     errorMessage.value = e?.message || 'ثبت ناموفق'
   }
   finally {
     saving.value = false
-  }
-}
-
-function openDetail(item: any) {
-  selected.value = { ...item }
-  noteBody.value = ''
-  detailDialog.value = true
-}
-
-async function changeStage(stageId: number) {
-  if (!selected.value) return
-  try {
-    const res = await updateOpportunityStage(selected.value.id, stageId)
-    selected.value = { ...selected.value, ...res.data }
-    await load()
-  }
-  catch (e: any) {
-    errorMessage.value = e?.message || 'تغییر مرحله ناموفق'
-  }
-}
-
-async function addNote() {
-  if (!selected.value || !noteBody.value.trim()) return
-  noteSaving.value = true
-  try {
-    await createOpportunityActivity(selected.value.id, {
-      type: 'note',
-      body: noteBody.value,
-    })
-    noteBody.value = ''
-  }
-  catch (e: any) {
-    errorMessage.value = e?.message || 'ثبت یادداشت ناموفق'
-  }
-  finally {
-    noteSaving.value = false
   }
 }
 
@@ -129,97 +115,109 @@ onMounted(load)
   <div>
     <div class="d-flex flex-wrap align-center justify-space-between gap-4 mb-6">
       <div>
-        <h4 class="text-h4 mb-1">فرصت‌های فروش</h4>
-        <p class="text-body-1 text-medium-emphasis mb-0">از سرنخ تا برنده شدن</p>
+        <h4 class="text-h4 mb-1">فرصت‌ها</h4>
+        <p class="text-body-1 text-medium-emphasis mb-0">
+          همه فرصت‌ها · {{ items.length }} مورد
+        </p>
       </div>
-      <VBtn color="primary" prepend-icon="ri-add-line" @click="dialog = true">
-        فرصت جدید
-      </VBtn>
+      <div class="d-flex gap-2">
+        <VBtn variant="tonal" @click="quickOpen = true">ثبت سریع</VBtn>
+        <VBtn color="primary" prepend-icon="ri-add-line" @click="quickOpen = true">
+          فرصت
+        </VBtn>
+      </div>
     </div>
+
+    <VCard class="mb-4">
+      <VCardText class="d-flex flex-wrap gap-3">
+        <VTextField
+          v-model="filters.q"
+          density="compact"
+          hide-details
+          label="جستجوی سازمان، کد، مخاطب..."
+          style="min-inline-size: 16rem;"
+          @keyup.enter="load"
+        />
+        <VSelect
+          v-model="filters.status"
+          :items="statusItems"
+          density="compact"
+          hide-details
+          style="min-inline-size: 11rem;"
+          @update:model-value="load"
+        />
+        <VSelect
+          v-model="filters.stage_id"
+          :items="stages"
+          density="compact"
+          hide-details
+          style="min-inline-size: 12rem;"
+          @update:model-value="load"
+        />
+        <VBtn variant="text" @click="load">اعمال</VBtn>
+      </VCardText>
+    </VCard>
 
     <VAlert v-if="errorMessage" type="error" variant="tonal" class="mb-4">{{ errorMessage }}</VAlert>
 
     <VCard>
       <VDataTable
         :headers="[
-          { title: 'عنوان', key: 'title' },
-          { title: 'طرف تجاری', key: 'party.name' },
-          { title: 'مرحله', key: 'stage.name' },
-          { title: 'مبلغ', key: 'amount' },
-          { title: 'گام بعد', key: 'next_step' },
+          { title: 'کد', key: 'code' },
+          { title: 'سازمان', key: 'organization_name' },
+          { title: 'محصول', key: 'product_name' },
           { title: 'وضعیت', key: 'status' },
-          { title: '', key: 'actions', sortable: false },
+          { title: 'مرحله', key: 'stage.name' },
+          { title: 'گام بعدی', key: 'next_step' },
+          { title: 'تاریخ گام', key: 'next_step_due_on' },
         ]"
         :items="items"
         :loading="loading"
         class="text-no-wrap"
+        @click:row="(_: any, ctx: any) => $router.push(`/opportunities/${ctx.item.id}`)"
       >
         <template #item.status="{ item }">
-          <VChip size="small" variant="tonal">{{ item.status }}</VChip>
-        </template>
-        <template #item.actions="{ item }">
-          <VBtn size="small" variant="text" @click="openDetail(item)">جزئیات</VBtn>
+          <VChip size="small" variant="tonal">{{ statusLabel[item.status] || item.status }}</VChip>
         </template>
         <template #no-data>فرصتی ثبت نشده</template>
         <template #bottom />
       </VDataTable>
     </VCard>
 
-    <VDialog v-model="dialog" max-width="560">
-      <VCard title="فرصت جدید">
+    <VDialog v-model="quickOpen" max-width="560">
+      <VCard title="ثبت سریع فرصت">
         <VCardText>
+          <p class="text-body-2 text-medium-emphasis mb-4">
+            حداقل اطلاعات برای شروع پیگیری — بعداً از ویرایش فرصت تکمیل کنید.
+          </p>
           <VRow>
             <VCol cols="12">
-              <VTextField v-model="form.title" label="عنوان فرصت" />
+              <VTextField v-model="form.organization_name" label="سازمان *" />
             </VCol>
             <VCol cols="12">
-              <VSelect v-model="form.party_id" :items="parties" label="طرف تجاری" />
+              <VSelect v-model="form.product_name" :items="productItems" label="محصول" />
             </VCol>
             <VCol cols="12" sm="6">
-              <VTextField v-model.number="form.amount" type="number" label="مبلغ تقریبی" />
+              <VTextField v-model="form.contact_name" label="فرد تماس" />
             </VCol>
             <VCol cols="12" sm="6">
-              <VTextField v-model="form.next_step" label="گام بعدی" />
+              <VTextField v-model="form.contact_mobile" label="موبایل" />
+            </VCol>
+            <VCol cols="12" sm="6">
+              <VTextField v-model="form.contact_phone" label="تلفن" />
+            </VCol>
+            <VCol cols="12" sm="6">
+              <VTextField v-model="form.next_step_due_on" type="date" label="تاریخ گام بعدی" />
             </VCol>
             <VCol cols="12">
-              <VTextarea v-model="form.need_summary" label="شرح نیاز" rows="3" />
+              <VTextarea v-model="form.next_step" label="گام بعدی *" rows="2" />
             </VCol>
           </VRow>
         </VCardText>
         <VCardActions>
           <VSpacer />
-          <VBtn variant="text" @click="dialog = false">انصراف</VBtn>
-          <VBtn color="primary" :loading="saving" @click="save">ثبت</VBtn>
-        </VCardActions>
-      </VCard>
-    </VDialog>
-
-    <VDialog v-model="detailDialog" max-width="640">
-      <VCard v-if="selected" :title="selected.title">
-        <VCardText>
-          <div class="mb-4">
-            <div class="text-body-2 text-medium-emphasis">طرف تجاری</div>
-            <div class="text-h6">{{ selected.party?.name || '—' }}</div>
-          </div>
-
-          <VSelect
-            :model-value="selected.stage?.id"
-            :items="stages"
-            label="مرحله"
-            class="mb-4"
-            @update:model-value="changeStage"
-          />
-
-          <VTextField
-            v-model="noteBody"
-            label="یادداشت فعالیت"
-            class="mb-2"
-          />
-          <VBtn size="small" :loading="noteSaving" @click="addNote">ثبت یادداشت</VBtn>
-        </VCardText>
-        <VCardActions>
-          <VSpacer />
-          <VBtn variant="text" @click="detailDialog = false">بستن</VBtn>
+          <VBtn variant="text" @click="quickOpen = false">انصراف</VBtn>
+          <VBtn color="primary" :loading="saving" @click="saveQuick">ثبت و مشاهده</VBtn>
         </VCardActions>
       </VCard>
     </VDialog>
