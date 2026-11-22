@@ -41,7 +41,6 @@ const monthItems = monthNames.map((title, i) => ({
   value: i + 1,
 }))
 
-/** بازه سال‌ها: حدود ۲۰ سال قبل تا ۱۰ سال بعد نسبت به امروز شمسی */
 const yearItems = computed(() => {
   const today = isoToJalaliParts(todayIso())
   const center = today?.jy ?? 1404
@@ -110,7 +109,7 @@ const display = computed(() => formatJalaliFa(model.value))
     v-model="menu"
     :close-on-content-click="false"
     location="bottom start"
-    max-width="320"
+    max-width="280"
   >
     <template #activator="{ props: act }">
       <VTextField
@@ -126,44 +125,54 @@ const display = computed(() => formatJalaliFa(model.value))
     </template>
 
     <VCard class="jalali-picker">
-      <div class="jalali-picker__header">
+      <!-- ردیف ۱: ماه + سال -->
+      <div class="jalali-picker__selectors">
+        <VSelect
+          :model-value="view.jm"
+          :items="monthItems"
+          density="compact"
+          hide-details
+          variant="outlined"
+          class="jalali-picker__month"
+          @update:model-value="onMonthChange"
+        />
+        <VSelect
+          :model-value="view.jy"
+          :items="yearItems"
+          density="compact"
+          hide-details
+          variant="outlined"
+          class="jalali-picker__year"
+          @update:model-value="onYearChange"
+        />
+      </div>
+
+      <!-- ردیف ۲: فلش‌ها -->
+      <div class="jalali-picker__nav">
         <VBtn
           icon
           variant="text"
-          size="small"
+          size="x-small"
           @click="nextMonth"
         >
-          <VIcon icon="ri-arrow-right-s-line" />
+          <VIcon
+            icon="ri-arrow-right-s-line"
+            size="18"
+          />
         </VBtn>
-
-        <div class="jalali-picker__selectors">
-          <VSelect
-            :model-value="view.jm"
-            :items="monthItems"
-            density="compact"
-            hide-details
-            variant="outlined"
-            class="jalali-picker__month"
-            @update:model-value="onMonthChange"
-          />
-          <VSelect
-            :model-value="view.jy"
-            :items="yearItems"
-            density="compact"
-            hide-details
-            variant="outlined"
-            class="jalali-picker__year"
-            @update:model-value="onYearChange"
-          />
-        </div>
-
+        <span class="text-caption text-medium-emphasis">
+          {{ monthNames[view.jm - 1] }} {{ toFaDigits(view.jy) }}
+        </span>
         <VBtn
           icon
           variant="text"
-          size="small"
+          size="x-small"
           @click="prevMonth"
         >
-          <VIcon icon="ri-arrow-left-s-line" />
+          <VIcon
+            icon="ri-arrow-left-s-line"
+            size="18"
+          />
         </VBtn>
       </div>
 
@@ -194,7 +203,7 @@ const display = computed(() => formatJalaliFa(model.value))
 
       <div class="jalali-picker__footer">
         <VBtn
-          size="small"
+          size="x-small"
           variant="text"
           color="secondary"
           @click="clear"
@@ -202,7 +211,7 @@ const display = computed(() => formatJalaliFa(model.value))
           پاک کردن
         </VBtn>
         <VBtn
-          size="small"
+          size="x-small"
           color="primary"
           variant="tonal"
           @click="pick(todayIso())"
@@ -216,45 +225,48 @@ const display = computed(() => formatJalaliFa(model.value))
 
 <style scoped>
 .jalali-picker {
-  width: 300px;
+  width: 260px;
   max-width: 92vw;
-  padding: 8px 10px 6px;
-}
-
-.jalali-picker__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 4px;
-  margin-bottom: 8px;
+  padding: 8px 8px 6px;
 }
 
 .jalali-picker__selectors {
-  display: flex;
-  flex: 1;
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
   gap: 6px;
-  min-width: 0;
+  margin-bottom: 4px;
 }
 
-.jalali-picker__month {
-  flex: 1.4;
-  min-width: 0;
-}
-
+.jalali-picker__month,
 .jalali-picker__year {
-  flex: 1;
   min-width: 0;
+}
+
+.jalali-picker__month :deep(.v-field),
+.jalali-picker__year :deep(.v-field) {
+  font-size: 0.8rem;
+}
+
+.jalali-picker__year :deep(.v-field__input) {
+  letter-spacing: 0;
+}
+
+.jalali-picker__nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
 }
 
 .jalali-picker__week,
 .jalali-picker__grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 2px;
+  gap: 1px;
 }
 
 .jalali-picker__week {
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .jalali-picker__cell {
@@ -264,19 +276,19 @@ const display = computed(() => formatJalaliFa(model.value))
   justify-content: center;
   border: 0;
   background: transparent;
-  border-radius: 8px;
-  font-size: 0.875rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
   cursor: pointer;
   color: inherit;
-  min-height: 34px;
+  min-height: 30px;
   padding: 0;
 }
 
 .jalali-picker__cell--head {
   cursor: default;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   opacity: 0.65;
-  min-height: 26px;
+  min-height: 22px;
 }
 
 .jalali-picker__cell--empty {
@@ -298,7 +310,6 @@ const display = computed(() => formatJalaliFa(model.value))
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 6px;
-  padding-top: 4px;
+  margin-top: 4px;
 }
 </style>
