@@ -10,7 +10,6 @@ import {
   todayIso,
 } from '@/utils/fa'
 
-/** v-model = ISO Y-m-d یا null */
 const model = defineModel<string | null>({ default: null })
 
 defineProps<{
@@ -148,8 +147,6 @@ const todayIsoStr = todayIso()
         :rules="required ? [(v: string) => !!v || 'تاریخ الزامی است'] : []"
         prepend-inner-icon="ri-calendar-line"
         v-bind="act"
-        hint="انتخاب از تقویم شمسی"
-        persistent-hint
       />
     </template>
 
@@ -260,42 +257,29 @@ const todayIsoStr = todayIso()
   max-width: 92vw;
   padding: 8px 8px 6px;
 }
-
 .jalali-picker__selectors {
   display: grid;
   grid-template-columns: 1.35fr 1fr;
   gap: 6px;
   margin-bottom: 4px;
 }
-
 .jalali-picker__month,
-.jalali-picker__year {
-  min-width: 0;
-}
-
+.jalali-picker__year { min-width: 0; }
 .jalali-picker__month :deep(.v-field),
-.jalali-picker__year :deep(.v-field) {
-  font-size: 0.8rem;
-}
-
+.jalali-picker__year :deep(.v-field) { font-size: 0.8rem; }
 .jalali-picker__nav {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 2px;
 }
-
 .jalali-picker__week,
 .jalali-picker__grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 1px;
 }
-
-.jalali-picker__week {
-  margin-bottom: 2px;
-}
-
+.jalali-picker__week { margin-bottom: 2px; }
 .jalali-picker__cell {
   aspect-ratio: 1;
   display: flex;
@@ -310,50 +294,39 @@ const todayIsoStr = todayIso()
   min-height: 30px;
   padding: 0;
 }
-
 .jalali-picker__cell--head {
   cursor: default;
   font-size: 0.7rem;
   opacity: 0.65;
   min-height: 22px;
 }
-
 .jalali-picker__cell--friday-head {
   color: rgb(var(--v-theme-error));
   opacity: 1;
   font-weight: 600;
 }
-
 .jalali-picker__cell--empty {
   cursor: default;
   pointer-events: none;
 }
-
 .jalali-picker__cell:not(.jalali-picker__cell--empty):not(.jalali-picker__cell--head):hover {
   background: rgba(var(--v-theme-primary), 0.08);
 }
-
-.jalali-picker__cell--friday {
-  color: rgb(var(--v-theme-error));
-}
-
+.jalali-picker__cell--friday { color: rgb(var(--v-theme-error)); }
 .jalali-picker__cell--holiday {
   color: rgb(var(--v-theme-error));
   font-weight: 600;
   background: rgba(var(--v-theme-error), 0.08);
 }
-
 .jalali-picker__cell--today {
   box-shadow: inset 0 0 0 1.5px rgb(var(--v-theme-primary));
 }
-
 .jalali-picker__cell--active {
   background: rgb(var(--v-theme-primary)) !important;
   color: rgb(var(--v-theme-on-primary)) !important;
   font-weight: 600;
   box-shadow: none;
 }
-
 .jalali-picker__footer {
   display: flex;
   justify-content: space-between;
