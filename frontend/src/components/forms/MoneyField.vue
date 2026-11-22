@@ -2,7 +2,6 @@
 import { formatRialFa, onlyDigits } from '@/utils/fa'
 import { rules } from '@/utils/formRules'
 
-/** v-model = مقدار خام ریال بدون جداکننده (string) */
 const model = defineModel<string>({ default: '' })
 
 const props = withDefaults(defineProps<{
@@ -36,8 +35,6 @@ const fieldRules = computed(() => {
     type="text"
     inputmode="numeric"
     :rules="fieldRules"
-    hint="مبالغ به ریال — جداکننده خودکار"
-    persistent-hint
     dir="ltr"
     class="text-end"
   />
