@@ -20,10 +20,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/parties', [PartyController::class, 'index']);
         Route::post('/parties', [PartyController::class, 'store']);
 
+        Route::get('/company-users', [CompanyController::class, 'users']);
+
         Route::get('/opportunities', [OpportunityController::class, 'index']);
         Route::post('/opportunities', [OpportunityController::class, 'store']);
         Route::get('/opportunities/{id}', [OpportunityController::class, 'show']);
+        Route::patch('/opportunities/{id}', [OpportunityController::class, 'update']);
         Route::post('/opportunities/{id}/close-step', [OpportunityController::class, 'closeStep']);
+        Route::post('/opportunities/{id}/activities', [OpportunityController::class, 'storeActivity']);
+        Route::post('/opportunities/{id}/assign', [OpportunityController::class, 'assign']);
         Route::get('/opportunity-stages', [OpportunityController::class, 'stages']);
     });
 });

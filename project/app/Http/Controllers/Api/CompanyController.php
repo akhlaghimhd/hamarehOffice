@@ -7,6 +7,7 @@ use App\Models\Company;
 use App\Models\CompanyUser;
 use App\Models\PlatformOwner;
 use App\Models\Role;
+use App\Models\User;
 use App\Support\CompanyContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -56,6 +57,21 @@ class CompanyController extends Controller
                 'code' => $membership->company?->code,
             ],
         ]);
+    }
+
+    public function users(CompanyContext $context): JsonResponse
+    {
+        $companyId = $context->check();
+
+        $users = User::query()
+            ->whereIn('id', CompanyUser::query()
+                ->where('company_id', $companyId)
+                ->where('is_active', true)
+                ->pluck('user_id'))
+            ->orderBy('name')
+            ->get(['id', 'name', 'email']);
+
+        return response()->json(['data' => $users]);
     }
 
     /**
