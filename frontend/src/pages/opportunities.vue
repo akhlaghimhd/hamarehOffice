@@ -29,6 +29,8 @@ const suppressDirty = ref(false)
 const filters = ref({
   status: '',
   stage_id: '',
+  owner_user_id: '',
+  followup_user_id: '',
   q: '',
 })
 
@@ -66,7 +68,26 @@ const statusLabel: Record<string, string> = {
   lost: 'بسته‌شده-ناموفق',
 }
 
+const statusColor: Record<string, string> = {
+  active: 'success',
+  nurturing: 'info',
+  paused: 'warning',
+  won: 'success',
+  lost: 'error',
+}
+
 const productItems = ['نوتوپیا', 'سایر محصولات چاپی', 'خدمات سفارشی']
+
+const tableHeaders = [
+  { title: 'کد', key: 'code', sortable: true },
+  { title: 'سازمان', key: 'organization_name', sortable: true },
+  { title: 'محصول‌ها', key: 'products', sortable: false },
+  { title: 'وضعیت', key: 'status', sortable: true },
+  { title: 'مرحله', key: 'stage.name', sortable: false },
+  { title: 'گام بعدی', key: 'next_step', sortable: false },
+  { title: 'تاریخ گام', key: 'next_step_due_on', sortable: true },
+  { title: '', key: 'actions', sortable: false, align: 'end' as const },
+]
 
 function productsOf(item: any): string[] {
   if (item.products?.length)
@@ -76,6 +97,34 @@ function productsOf(item: any): string[] {
   return []
 }
 
+function orgSubtitle(item: any): string {
+  const parts: string[] = []
+  const owner = item.owner?.name || item.owner_name
+  const followup = item.followup_user?.name || item.followup_name || item.assignee?.name
+  if (owner)
+    parts.push(`مالک: ${owner}`)
+  if (followup && followup !== owner)
+    parts.push(`ارجاع به: ${followup}`)
+  if (item.contact_name)
+    parts.push(item.contact_name)
+  return parts.join(' · ')
+}
+
+function openItem(id: number) {
+  router.push('/opportunities/' + id)
+}
+
+function goToOpportunity(_event: unknown, ctx: { item: { id: number } }) {
+  openItem(ctx.item.id)
+}
+
+function stopAnd(fn: () => void) {
+  return (e: Event) => {
+    e.stopPropagation()
+    fn()
+  }
+}
+
 async function openCreate() {
   suppressDirty.value = true
   form.value = emptyForm()
@@ -83,14 +132,6 @@ async function openCreate() {
   drawerOpen.value = true
   await nextTick()
   suppressDirty.value = false
-}
-
-function goToOpportunity(_event: unknown, ctx: { item: { id: number } }) {
-  router.push('/opportunities/' + ctx.item.id)
-}
-
-function openItem(id: number) {
-  router.push('/opportunities/' + id)
 }
 
 async function load() {
@@ -105,6 +146,10 @@ async function load() {
       params.set('status', filters.value.status)
     if (filters.value.stage_id)
       params.set('stage_id', String(filters.value.stage_id))
+    if (filters.value.owner_user_id)
+      params.set('owner_user_id', String(filters.value.owner_user_id))
+    if (filters.value.followup_user_id)
+      params.set('followup_user_id', String(filters.value.followup_user_id))
     if (filters.value.q)
       params.set('q', filters.value.q)
 
@@ -196,13 +241,14 @@ onMounted(load)
     </div>
 
     <VCard class="mb-4">
-      <VCardText class="d-flex flex-wrap gap-3">
+      <VCardText class="d-flex flex-wrap gap-3 align-center">
         <VTextField
           v-model="filters.q"
           density="compact"
           hide-details
-          label="جستجو..."
-          style="min-inline-size: 12rem; flex: 1;"
+          label="جستجوی سازمان، کد، مخاطب..."
+          prepend-inner-icon="ri-search-line"
+          style="min-inline-size: 14rem; flex: 1;"
           @keyup.enter="load"
         />
         <VSelect
@@ -233,23 +279,31 @@ onMounted(load)
 
     <VCard class="d-none d-md-block">
       <VDataTable
-        :headers="[
-          { title: 'کد', key: 'code' },
-          { title: 'سازمان', key: 'organization_name' },
-          { title: 'محصول‌ها', key: 'products' },
-          { title: 'وضعیت', key: 'status' },
-          { title: 'مرحله', key: 'stage.name' },
-          { title: 'گام بعدی', key: 'next_step' },
-          { title: 'تاریخ گام', key: 'next_step_due_on' },
-        ]"
+        :headers="tableHeaders"
         :items="items"
         :loading="loading"
-        class="text-no-wrap"
+        class="text-no-wrap opportunity-table"
+        hover
         @click:row="goToOpportunity"
       >
         <template #item.code="{ item }">
-          {{ toFaDigits(item.code) }}
+          <span class="text-primary font-weight-medium">{{ toFaDigits(item.code) }}</span>
         </template>
+
+        <template #item.organization_name="{ item }">
+          <div class="py-1">
+            <div class="font-weight-medium text-wrap">
+              {{ item.organization_name }}
+            </div>
+            <div
+              v-if="orgSubtitle(item)"
+              class="text-caption text-medium-emphasis text-wrap"
+            >
+              {{ orgSubtitle(item) }}
+            </div>
+          </div>
+        </template>
+
         <template #item.products="{ item }">
           <div class="d-flex flex-wrap gap-1 py-1">
             <VChip
@@ -264,14 +318,86 @@ onMounted(load)
             <span v-if="!productsOf(item).length">—</span>
           </div>
         </template>
+
         <template #item.status="{ item }">
-          <VChip size="small" variant="tonal">
+          <VChip
+            size="small"
+            variant="tonal"
+            :color="statusColor[item.status] || 'secondary'"
+          >
             {{ statusLabel[item.status] || item.status }}
           </VChip>
         </template>
-        <template #item.next_step_due_on="{ item }">
-          {{ formatJalaliFa(item.next_step_due_on) }}
+
+        <template #item['stage.name']="{ item }">
+          {{ item.stage?.name || '—' }}
         </template>
+
+        <template #item.next_step="{ item }">
+          <span class="text-wrap d-inline-block" style="max-inline-size: 12rem;">
+            {{ item.next_step || '—' }}
+          </span>
+        </template>
+
+        <template #item.next_step_due_on="{ item }">
+          {{ formatJalaliFa(item.next_step_due_on) || '—' }}
+        </template>
+
+        <template #item.actions="{ item }">
+          <div class="d-flex align-center justify-end ga-0" @click.stop>
+            <VBtn
+              icon
+              variant="text"
+              size="small"
+              color="default"
+              title="ویرایش"
+              :to="{ path: '/opportunities/' + item.id }"
+            >
+              <VIcon icon="ri-pencil-line" size="18" />
+            </VBtn>
+            <VBtn
+              icon
+              variant="text"
+              size="small"
+              color="success"
+              title="بستن گام"
+              @click="openItem(item.id)"
+            >
+              <VIcon icon="ri-checkbox-circle-line" size="18" />
+            </VBtn>
+            <VBtn
+              icon
+              variant="text"
+              size="small"
+              color="default"
+              title="فعالیت"
+              @click="openItem(item.id)"
+            >
+              <VIcon icon="ri-file-list-3-line" size="18" />
+            </VBtn>
+            <VBtn
+              icon
+              variant="text"
+              size="small"
+              color="default"
+              title="ارجاع"
+              @click="openItem(item.id)"
+            >
+              <VIcon icon="ri-user-add-line" size="18" />
+            </VBtn>
+            <VBtn
+              icon
+              variant="text"
+              size="small"
+              color="default"
+              title="میزکار"
+              @click="openItem(item.id)"
+            >
+              <VIcon icon="ri-arrow-go-back-line" size="18" />
+            </VBtn>
+          </div>
+        </template>
+
         <template #no-data>
           فرصتی ثبت نشده
         </template>
@@ -300,9 +426,16 @@ onMounted(load)
               </div>
               <div class="text-caption text-medium-emphasis">
                 {{ toFaDigits(item.code) }}
+                <template v-if="orgSubtitle(item)">
+                  · {{ orgSubtitle(item) }}
+                </template>
               </div>
             </div>
-            <VChip size="small" variant="tonal" color="primary">
+            <VChip
+              size="small"
+              variant="tonal"
+              :color="statusColor[item.status] || 'primary'"
+            >
               {{ statusLabel[item.status] || item.status }}
             </VChip>
           </div>
@@ -322,8 +455,22 @@ onMounted(load)
           <div class="text-body-2 mb-1">
             <span class="text-medium-emphasis">گام بعدی: </span>{{ item.next_step || '—' }}
           </div>
-          <div class="text-caption text-medium-emphasis">
+          <div class="text-caption text-medium-emphasis mb-2">
             {{ formatJalaliFa(item.next_step_due_on) }}
+          </div>
+          <div class="d-flex justify-end ga-0" @click.stop>
+            <VBtn icon variant="text" size="small" title="ویرایش" @click="openItem(item.id)">
+              <VIcon icon="ri-pencil-line" size="18" />
+            </VBtn>
+            <VBtn icon variant="text" size="small" color="success" title="بستن گام" @click="openItem(item.id)">
+              <VIcon icon="ri-checkbox-circle-line" size="18" />
+            </VBtn>
+            <VBtn icon variant="text" size="small" title="فعالیت" @click="openItem(item.id)">
+              <VIcon icon="ri-file-list-3-line" size="18" />
+            </VBtn>
+            <VBtn icon variant="text" size="small" title="ارجاع" @click="openItem(item.id)">
+              <VIcon icon="ri-user-add-line" size="18" />
+            </VBtn>
           </div>
         </VCardText>
       </VCard>
@@ -423,5 +570,8 @@ onMounted(load)
 }
 .mobile-list-card:active {
   box-shadow: 0 2px 8px rgba(var(--v-shadow-key-umbra-color), 0.12);
+}
+.opportunity-table :deep(tbody tr) {
+  cursor: pointer;
 }
 </style>
