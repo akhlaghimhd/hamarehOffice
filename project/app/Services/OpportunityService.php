@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\NumberSequence;
 use App\Models\Opportunity;
 use App\Models\OpportunityActivity;
+use App\Models\OpportunityReferral;
 use App\Models\OpportunityStage;
 use App\Models\OpportunityStep;
 use Illuminate\Support\Facades\DB;
@@ -116,6 +117,128 @@ class OpportunityService
                 'status' => 'open',
                 'is_current' => true,
                 'sort_order' => 1,
+            ]);
+
+            return $opp->load(['stage', 'owner', 'assignee', 'currentStep']);
+        });
+    }
+
+    public function updateBasic(Opportunity $opp, array $data): Opportunity
+    {
+        $products = null;
+        if (array_key_exists('products', $data)) {
+            $products = array_values(array_filter(
+                $data['products'] ?? [],
+                fn ($p) => is_string($p) && trim($p) !== ''
+            ));
+            $opp->products = $products;
+            $opp->product_name = count($products) > 1
+                ? implode('، ', $products)
+                : ($products[0] ?? null);
+        }
+
+        foreach ([
+            'organization_name',
+            'contact_name',
+            'contact_role',
+            'contact_mobile',
+            'contact_phone',
+            'contact_email',
+            'next_step',
+            'next_step_due_on',
+            'status',
+            'stage_id',
+        ] as $field) {
+            if (array_key_exists($field, $data)) {
+                $opp->{$field} = $data[$field];
+            }
+        }
+
+        $opp->last_interaction_at = now();
+        $opp->save();
+
+        if (! empty($data['next_step']) || array_key_exists('next_step_due_on', $data)) {
+            $step = OpportunityStep::query()
+                ->where('opportunity_id', $opp->id)
+                ->where('is_current', true)
+                ->where('status', 'open')
+                ->first();
+
+            if ($step) {
+                if (! empty($data['next_step'])) {
+                    $step->title = $data['next_step'];
+                }
+                if (array_key_exists('next_step_due_on', $data)) {
+                    $step->due_on = $data['next_step_due_on'];
+                }
+                $step->save();
+            }
+        }
+
+        return $opp->load(['stage', 'owner', 'assignee', 'currentStep']);
+    }
+
+    public function addActivity(Opportunity $opp, int $userId, array $data): OpportunityActivity
+    {
+        $activity = OpportunityActivity::query()->create([
+            'company_id' => $opp->company_id,
+            'opportunity_id' => $opp->id,
+            'step_id' => $opp->currentStep?->id,
+            'user_id' => $userId,
+            'type' => $data['type'] ?? 'note',
+            'subject' => $data['subject'] ?? 'یادداشت',
+            'body' => $data['body'] ?? '',
+            'happened_at' => $data['happened_at'] ?? now(),
+        ]);
+
+        $opp->last_interaction_at = now();
+        $opp->save();
+
+        return $activity;
+    }
+
+    public function assign(Opportunity $opp, int $fromUserId, array $data): Opportunity
+    {
+        return DB::transaction(function () use ($opp, $fromUserId, $data) {
+            $toUserId = (int) $data['to_user_id'];
+
+            OpportunityReferral::query()->create([
+                'company_id' => $opp->company_id,
+                'opportunity_id' => $opp->id,
+                'from_user_id' => $fromUserId,
+                'to_user_id' => $toUserId,
+                'action' => $data['action'] ?? 'assign',
+                'step_title' => $data['step_title'] ?? $opp->next_step,
+                'step_due_on' => $data['step_due_on'] ?? $opp->next_step_due_on,
+                'priority' => $data['priority'] ?? 'normal',
+                'note' => $data['note'] ?? null,
+                'created_at' => now(),
+            ]);
+
+            $opp->assigned_to_user_id = $toUserId;
+            $opp->last_interaction_at = now();
+            $opp->save();
+
+            $step = OpportunityStep::query()
+                ->where('opportunity_id', $opp->id)
+                ->where('is_current', true)
+                ->where('status', 'open')
+                ->first();
+
+            if ($step) {
+                $step->assignee_user_id = $toUserId;
+                $step->save();
+            }
+
+            OpportunityActivity::query()->create([
+                'company_id' => $opp->company_id,
+                'opportunity_id' => $opp->id,
+                'step_id' => $step?->id,
+                'user_id' => $fromUserId,
+                'type' => 'assign',
+                'subject' => 'ارجاع فرصت',
+                'body' => $data['note'] ?? 'ارجاع به کاربر '.$toUserId,
+                'happened_at' => now(),
             ]);
 
             return $opp->load(['stage', 'owner', 'assignee', 'currentStep']);
