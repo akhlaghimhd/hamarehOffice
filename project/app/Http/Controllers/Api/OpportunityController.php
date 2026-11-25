@@ -100,6 +100,31 @@ class OpportunityController extends Controller
         return response()->json(['data' => $this->detail($opp)]);
     }
 
+    public function update(Request $request, int $id, CompanyContext $context): JsonResponse
+    {
+        $companyId = $context->check();
+
+        $data = $request->validate([
+            'organization_name' => ['sometimes', 'required', 'string', 'max:255'],
+            'products' => ['nullable', 'array'],
+            'products.*' => ['string', 'max:255'],
+            'contact_name' => ['nullable', 'string', 'max:255'],
+            'contact_role' => ['nullable', 'string', 'max:255'],
+            'contact_mobile' => ['nullable', 'string', 'max:32'],
+            'contact_phone' => ['nullable', 'string', 'max:32'],
+            'contact_email' => ['nullable', 'email', 'max:255'],
+            'next_step' => ['nullable', 'string', 'max:500'],
+            'next_step_due_on' => ['nullable', 'date'],
+            'stage_id' => ['nullable', 'integer'],
+            'status' => ['nullable', 'in:active,nurturing,paused,won,lost'],
+        ]);
+
+        $opp = Opportunity::query()->where('company_id', $companyId)->findOrFail($id);
+        $opp = $this->service->updateBasic($opp, $data);
+
+        return response()->json(['data' => $this->listItem($opp)]);
+    }
+
     public function closeStep(Request $request, int $id, CompanyContext $context): JsonResponse
     {
         $companyId = $context->check();
@@ -129,6 +154,48 @@ class OpportunityController extends Controller
         ]))]);
     }
 
+    public function storeActivity(Request $request, int $id, CompanyContext $context): JsonResponse
+    {
+        $companyId = $context->check();
+
+        $data = $request->validate([
+            'subject' => ['nullable', 'string', 'max:255'],
+            'body' => ['required', 'string', 'max:5000'],
+            'type' => ['nullable', 'string', 'max:50'],
+        ]);
+
+        $opp = Opportunity::query()
+            ->with('currentStep')
+            ->where('company_id', $companyId)
+            ->findOrFail($id);
+
+        $activity = $this->service->addActivity($opp, $request->user()->id, $data);
+
+        return response()->json(['data' => [
+            'id' => $activity->id,
+            'subject' => $activity->subject,
+            'body' => $activity->body,
+            'type' => $activity->type,
+            'happened_at' => $activity->happened_at?->toIso8601String(),
+        ]], 201);
+    }
+
+    public function assign(Request $request, int $id, CompanyContext $context): JsonResponse
+    {
+        $companyId = $context->check();
+
+        $data = $request->validate([
+            'to_user_id' => ['required', 'integer', 'exists:users,id'],
+            'note' => ['nullable', 'string', 'max:1000'],
+            'action' => ['nullable', 'string', 'max:50'],
+        ]);
+
+        $opp = Opportunity::query()->where('company_id', $companyId)->findOrFail($id);
+        $opp = $this->service->assign($opp, $request->user()->id, $data);
+
+        return response()->json(['data' => $this->listItem($opp)]);
+    }
+
     public function stages(CompanyContext $context): JsonResponse
     {
         $companyId = $context->check();
@@ -155,6 +222,7 @@ class OpportunityController extends Controller
             'organization_name' => $o->organization_name,
             'product_name' => $o->product_name,
             'products' => $products,
+            'contact_name' => $o->contact_name,
             'status' => $o->status,
             'next_step' => $o->next_step,
             'next_step_due_on' => $o->next_step_due_on?->format('Y-m-d'),
@@ -172,7 +240,6 @@ class OpportunityController extends Controller
     private function detail(Opportunity $o): array
     {
         return array_merge($this->listItem($o), [
-            'contact_name' => $o->contact_name,
             'contact_role' => $o->contact_role,
             'contact_mobile' => $o->contact_mobile,
             'contact_phone' => $o->contact_phone,

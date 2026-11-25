@@ -9,7 +9,7 @@ export type CompanyOption = {
   id: number
   name: string
   code?: string | null
-  is_default?: boolean
+  is_current?: boolean
 }
 
 export function getToken(): string | null {
@@ -114,6 +114,10 @@ export async function switchCompanyRequest(companyId: number) {
   }, false)
 }
 
+export async function fetchCompanyUsers() {
+  return api<{ data: { id: number; name: string; email?: string }[] }>('/api/company-users')
+}
+
 export async function fetchParties() {
   return api<{ data: any[] }>('/api/parties')
 }
@@ -141,8 +145,29 @@ export async function fetchOpportunity(id: number) {
   return api<{ data: any }>(`/api/opportunities/${id}`)
 }
 
+export async function updateOpportunity(id: number, payload: Record<string, unknown>) {
+  return api<{ data: any }>(`/api/opportunities/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+}
+
 export async function closeOpportunityStep(id: number, payload: Record<string, unknown>) {
   return api<{ data: any }>(`/api/opportunities/${id}/close-step`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function createOpportunityActivity(id: number, payload: Record<string, unknown>) {
+  return api<{ data: any }>(`/api/opportunities/${id}/activities`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function assignOpportunity(id: number, payload: Record<string, unknown>) {
+  return api<{ data: any }>(`/api/opportunities/${id}/assign`, {
     method: 'POST',
     body: JSON.stringify(payload),
   })
