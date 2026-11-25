@@ -5,10 +5,15 @@ import JalaliDateField from '@/components/forms/JalaliDateField.vue'
 import PhoneField from '@/components/forms/PhoneField.vue'
 import { useNotify } from '@/composables/useNotify'
 import {
+  assignOpportunity,
+  closeOpportunityStep,
   createOpportunity,
+  createOpportunityActivity,
+  fetchCompanyUsers,
   fetchOpportunities,
   fetchOpportunityStages,
   getCompany,
+  updateOpportunity,
 } from '@/utils/api'
 import { formatJalaliFa, toFaDigits, todayIso } from '@/utils/fa'
 import { rules } from '@/utils/formRules'
@@ -19,18 +24,59 @@ const { success, error: notifyError } = useNotify()
 
 const items = ref<any[]>([])
 const stages = ref<any[]>([])
+const companyUsers = ref<{ title: string; value: number }[]>([])
 const loading = ref(false)
 const saving = ref(false)
+const actionSaving = ref(false)
+
 const drawerOpen = ref(false)
 const formRef = ref()
 const dirty = ref(false)
 const suppressDirty = ref(false)
 
+const activeItem = ref<any | null>(null)
+
+const closeOpen = ref(false)
+const activityOpen = ref(false)
+const assignOpen = ref(false)
+const editOpen = ref(false)
+
+const closeFormRef = ref()
+const activityFormRef = ref()
+const assignFormRef = ref()
+const editFormRef = ref()
+
+const closeForm = ref({
+  result: '',
+  stage_id: null as number | null,
+  status: 'active',
+  next_step_title: '',
+  next_step_due_on: null as string | null,
+})
+
+const activityForm = ref({
+  subject: 'یادداشت',
+  body: '',
+})
+
+const assignForm = ref({
+  to_user_id: null as number | null,
+  note: '',
+})
+
+const editForm = ref({
+  organization_name: '',
+  products: [] as string[],
+  contact_name: '',
+  contact_mobile: '',
+  contact_phone: '',
+  next_step: '',
+  next_step_due_on: null as string | null,
+})
+
 const filters = ref({
   status: '',
   stage_id: '',
-  owner_user_id: '',
-  followup_user_id: '',
   q: '',
 })
 
@@ -78,6 +124,10 @@ const statusColor: Record<string, string> = {
 
 const productItems = ['نوتوپیا', 'سایر محصولات چاپی', 'خدمات سفارشی']
 
+const stageSelectItems = computed(() =>
+  stages.value.filter(s => s.value !== ''),
+)
+
 const tableHeaders = [
   { title: 'کد', key: 'code', sortable: true },
   { title: 'سازمان', key: 'organization_name', sortable: true },
@@ -100,7 +150,7 @@ function productsOf(item: any): string[] {
 function orgSubtitle(item: any): string {
   const parts: string[] = []
   const owner = item.owner?.name || item.owner_name
-  const followup = item.followup_user?.name || item.followup_name || item.assignee?.name
+  const followup = item.assignee?.name
   if (owner)
     parts.push(`مالک: ${owner}`)
   if (followup && followup !== owner)
@@ -118,11 +168,58 @@ function goToOpportunity(_event: unknown, ctx: { item: { id: number } }) {
   openItem(ctx.item.id)
 }
 
-function stopAnd(fn: () => void) {
-  return (e: Event) => {
-    e.stopPropagation()
-    fn()
+function openEdit(item: any) {
+  activeItem.value = item
+  editForm.value = {
+    organization_name: item.organization_name || '',
+    products: productsOf(item),
+    contact_name: item.contact_name || '',
+    contact_mobile: item.contact_mobile || '',
+    contact_phone: item.contact_phone || '',
+    next_step: item.next_step || item.current_step?.title || '',
+    next_step_due_on: item.next_step_due_on || item.current_step?.due_on || null,
   }
+  editOpen.value = true
+}
+
+function openClose(item: any) {
+  activeItem.value = item
+  closeForm.value = {
+    result: '',
+    stage_id: item.stage?.id ?? null,
+    status: item.status || 'active',
+    next_step_title: '',
+    next_step_due_on: null,
+  }
+  closeOpen.value = true
+}
+
+function openActivity(item: any) {
+  activeItem.value = item
+  activityForm.value = { subject: 'یادداشت', body: '' }
+  activityOpen.value = true
+}
+
+async function openAssign(item: any) {
+  activeItem.value = item
+  assignForm.value = {
+    to_user_id: item.assignee?.id ?? null,
+    note: '',
+  }
+  if (!companyUsers.value.length) {
+    try {
+      const res = await fetchCompanyUsers()
+      companyUsers.value = (res.data || []).map((u: any) => ({
+        title: u.name,
+        value: u.id,
+      }))
+    }
+    catch (e: any) {
+      notifyError(e?.message || 'خطا در دریافت کاربران')
+      return
+    }
+  }
+  assignOpen.value = true
 }
 
 async function openCreate() {
@@ -146,10 +243,6 @@ async function load() {
       params.set('status', filters.value.status)
     if (filters.value.stage_id)
       params.set('stage_id', String(filters.value.stage_id))
-    if (filters.value.owner_user_id)
-      params.set('owner_user_id', String(filters.value.owner_user_id))
-    if (filters.value.followup_user_id)
-      params.set('followup_user_id', String(filters.value.followup_user_id))
     if (filters.value.q)
       params.set('q', filters.value.q)
 
@@ -204,6 +297,106 @@ async function saveQuick() {
   }
   finally {
     saving.value = false
+  }
+}
+
+async function submitEdit() {
+  const { valid } = await editFormRef.value?.validate?.() ?? { valid: true }
+  if (!valid || !activeItem.value)
+    return
+
+  actionSaving.value = true
+  try {
+    await updateOpportunity(activeItem.value.id, {
+      organization_name: editForm.value.organization_name,
+      products: editForm.value.products,
+      contact_name: editForm.value.contact_name || null,
+      contact_mobile: editForm.value.contact_mobile || null,
+      contact_phone: editForm.value.contact_phone || null,
+      next_step: editForm.value.next_step || null,
+      next_step_due_on: editForm.value.next_step_due_on,
+    })
+    editOpen.value = false
+    success('فرصت به‌روزرسانی شد')
+    await load()
+  }
+  catch (e: any) {
+    notifyError(e?.message || 'ویرایش ناموفق بود')
+  }
+  finally {
+    actionSaving.value = false
+  }
+}
+
+async function submitClose() {
+  const { valid } = await closeFormRef.value?.validate?.() ?? { valid: true }
+  if (!valid || !activeItem.value)
+    return
+
+  actionSaving.value = true
+  try {
+    await closeOpportunityStep(activeItem.value.id, {
+      result: closeForm.value.result,
+      stage_id: closeForm.value.stage_id,
+      status: closeForm.value.status,
+      next_step_title: closeForm.value.next_step_title || null,
+      next_step_due_on: closeForm.value.next_step_due_on,
+    })
+    closeOpen.value = false
+    success('گام بسته شد')
+    await load()
+  }
+  catch (e: any) {
+    notifyError(e?.message || 'بستن گام ناموفق بود')
+  }
+  finally {
+    actionSaving.value = false
+  }
+}
+
+async function submitActivity() {
+  const { valid } = await activityFormRef.value?.validate?.() ?? { valid: true }
+  if (!valid || !activeItem.value)
+    return
+
+  actionSaving.value = true
+  try {
+    await createOpportunityActivity(activeItem.value.id, {
+      subject: activityForm.value.subject || 'یادداشت',
+      body: activityForm.value.body,
+      type: 'note',
+    })
+    activityOpen.value = false
+    success('فعالیت ثبت شد')
+  }
+  catch (e: any) {
+    notifyError(e?.message || 'ثبت فعالیت ناموفق بود')
+  }
+  finally {
+    actionSaving.value = false
+  }
+}
+
+async function submitAssign() {
+  const { valid } = await assignFormRef.value?.validate?.() ?? { valid: true }
+  if (!valid || !activeItem.value)
+    return
+
+  actionSaving.value = true
+  try {
+    await assignOpportunity(activeItem.value.id, {
+      to_user_id: assignForm.value.to_user_id,
+      note: assignForm.value.note || null,
+    })
+    assignOpen.value = false
+    success('ارجاع انجام شد')
+    await load()
+  }
+  catch (e: any) {
+    notifyError(e?.message || 'ارجاع ناموفق بود')
+  }
+  finally {
+    actionSaving.value = false
   }
 }
 
@@ -345,54 +538,19 @@ onMounted(load)
 
         <template #item.actions="{ item }">
           <div class="d-flex align-center justify-end ga-0" @click.stop>
-            <VBtn
-              icon
-              variant="text"
-              size="small"
-              color="default"
-              title="ویرایش"
-              :to="{ path: '/opportunities/' + item.id }"
-            >
+            <VBtn icon variant="text" size="small" title="ویرایش" @click="openEdit(item)">
               <VIcon icon="ri-pencil-line" size="18" />
             </VBtn>
-            <VBtn
-              icon
-              variant="text"
-              size="small"
-              color="success"
-              title="بستن گام"
-              @click="openItem(item.id)"
-            >
+            <VBtn icon variant="text" size="small" color="success" title="بستن گام" @click="openClose(item)">
               <VIcon icon="ri-checkbox-circle-line" size="18" />
             </VBtn>
-            <VBtn
-              icon
-              variant="text"
-              size="small"
-              color="default"
-              title="فعالیت"
-              @click="openItem(item.id)"
-            >
+            <VBtn icon variant="text" size="small" title="ثبت فعالیت" @click="openActivity(item)">
               <VIcon icon="ri-file-list-3-line" size="18" />
             </VBtn>
-            <VBtn
-              icon
-              variant="text"
-              size="small"
-              color="default"
-              title="ارجاع"
-              @click="openItem(item.id)"
-            >
+            <VBtn icon variant="text" size="small" title="ارجاع" @click="openAssign(item)">
               <VIcon icon="ri-user-add-line" size="18" />
             </VBtn>
-            <VBtn
-              icon
-              variant="text"
-              size="small"
-              color="default"
-              title="میزکار"
-              @click="openItem(item.id)"
-            >
+            <VBtn icon variant="text" size="small" title="میزکار" @click="openItem(item.id)">
               <VIcon icon="ri-arrow-go-back-line" size="18" />
             </VBtn>
           </div>
@@ -431,21 +589,12 @@ onMounted(load)
                 </template>
               </div>
             </div>
-            <VChip
-              size="small"
-              variant="tonal"
-              :color="statusColor[item.status] || 'primary'"
-            >
+            <VChip size="small" variant="tonal" :color="statusColor[item.status] || 'primary'">
               {{ statusLabel[item.status] || item.status }}
             </VChip>
           </div>
           <div class="d-flex flex-wrap gap-1 mb-2">
-            <VChip
-              v-for="p in productsOf(item)"
-              :key="p"
-              size="x-small"
-              variant="outlined"
-            >
+            <VChip v-for="p in productsOf(item)" :key="p" size="x-small" variant="outlined">
               {{ p }}
             </VChip>
           </div>
@@ -459,16 +608,16 @@ onMounted(load)
             {{ formatJalaliFa(item.next_step_due_on) }}
           </div>
           <div class="d-flex justify-end ga-0" @click.stop>
-            <VBtn icon variant="text" size="small" title="ویرایش" @click="openItem(item.id)">
+            <VBtn icon variant="text" size="small" title="ویرایش" @click="openEdit(item)">
               <VIcon icon="ri-pencil-line" size="18" />
             </VBtn>
-            <VBtn icon variant="text" size="small" color="success" title="بستن گام" @click="openItem(item.id)">
+            <VBtn icon variant="text" size="small" color="success" title="بستن گام" @click="openClose(item)">
               <VIcon icon="ri-checkbox-circle-line" size="18" />
             </VBtn>
-            <VBtn icon variant="text" size="small" title="فعالیت" @click="openItem(item.id)">
+            <VBtn icon variant="text" size="small" title="فعالیت" @click="openActivity(item)">
               <VIcon icon="ri-file-list-3-line" size="18" />
             </VBtn>
-            <VBtn icon variant="text" size="small" title="ارجاع" @click="openItem(item.id)">
+            <VBtn icon variant="text" size="small" title="ارجاع" @click="openAssign(item)">
               <VIcon icon="ri-user-add-line" size="18" />
             </VBtn>
           </div>
@@ -484,80 +633,85 @@ onMounted(load)
       :illustration="trophy"
       :width="520"
     >
-      <VForm
-        ref="formRef"
-        @submit.prevent="saveQuick"
-      >
+      <VForm ref="formRef" @submit.prevent="saveQuick">
         <VRow>
           <VCol cols="12">
-            <VTextField
-              v-model="form.organization_name"
-              label="سازمان"
-              :rules="[rules.required('سازمان')]"
-            />
+            <VTextField v-model="form.organization_name" label="سازمان" :rules="[rules.required('سازمان')]" />
           </VCol>
           <VCol cols="12">
-            <VSelect
-              v-model="form.products"
-              :items="productItems"
-              label="محصول‌ها"
-              multiple
-              chips
-              closable-chips
-              :rules="[rules.required('محصول')]"
-            />
+            <VSelect v-model="form.products" :items="productItems" label="محصول‌ها" multiple chips closable-chips :rules="[rules.required('محصول')]" />
           </VCol>
           <VCol cols="12" sm="6">
-            <VTextField
-              v-model="form.contact_name"
-              label="فرد تماس"
-            />
+            <VTextField v-model="form.contact_name" label="فرد تماس" />
           </VCol>
           <VCol cols="12" sm="6">
-            <PhoneField
-              v-model="form.contact_mobile"
-              label="موبایل"
-              mobile
-            />
+            <PhoneField v-model="form.contact_mobile" label="موبایل" mobile />
           </VCol>
           <VCol cols="12" sm="6">
-            <PhoneField
-              v-model="form.contact_phone"
-              label="تلفن"
-            />
+            <PhoneField v-model="form.contact_phone" label="تلفن" />
           </VCol>
           <VCol cols="12" sm="6">
-            <JalaliDateField
-              v-model="form.next_step_due_on"
-              label="تاریخ گام بعدی"
-            />
+            <JalaliDateField v-model="form.next_step_due_on" label="تاریخ گام بعدی" />
           </VCol>
           <VCol cols="12">
-            <VTextarea
-              v-model="form.next_step"
-              label="گام بعدی"
-              rows="2"
-              :rules="[rules.required('گام بعدی')]"
-            />
+            <VTextarea v-model="form.next_step" label="گام بعدی" rows="2" :rules="[rules.required('گام بعدی')]" />
           </VCol>
         </VRow>
       </VForm>
-
       <template #actions>
-        <VBtn
-          variant="text"
-          color="secondary"
-          @click="dirty = false; drawerOpen = false"
-        >
-          انصراف
-        </VBtn>
-        <VBtn
-          color="primary"
-          :loading="saving"
-          @click="saveQuick"
-        >
-          ثبت و مشاهده
-        </VBtn>
+        <VBtn variant="text" color="secondary" @click="dirty = false; drawerOpen = false">انصراف</VBtn>
+        <VBtn color="primary" :loading="saving" @click="saveQuick">ثبت و مشاهده</VBtn>
+      </template>
+    </FormDrawer>
+
+    <FormDrawer v-model="editOpen" title="ویرایش فرصت" :subtitle="activeItem ? toFaDigits(activeItem.code) : ''" :width="520">
+      <VForm ref="editFormRef" @submit.prevent="submitEdit">
+        <VTextField v-model="editForm.organization_name" label="سازمان" class="mb-3" :rules="[rules.required('سازمان')]" />
+        <VSelect v-model="editForm.products" :items="productItems" label="محصول‌ها" multiple chips closable-chips class="mb-3" />
+        <VTextField v-model="editForm.contact_name" label="فرد تماس" class="mb-3" />
+        <VTextField v-model="editForm.contact_mobile" label="موبایل" class="mb-3" />
+        <VTextarea v-model="editForm.next_step" label="گام بعدی" rows="2" class="mb-3" />
+        <JalaliDateField v-model="editForm.next_step_due_on" label="تاریخ گام" />
+      </VForm>
+      <template #actions>
+        <VBtn variant="text" color="secondary" @click="editOpen = false">انصراف</VBtn>
+        <VBtn color="primary" :loading="actionSaving" @click="submitEdit">ذخیره</VBtn>
+      </template>
+    </FormDrawer>
+
+    <FormDrawer v-model="closeOpen" title="بستن گام" :subtitle="activeItem ? (activeItem.next_step || activeItem.current_step?.title || '') : ''" :width="480">
+      <VForm ref="closeFormRef" @submit.prevent="submitClose">
+        <VTextarea v-model="closeForm.result" label="نتیجه این گام" rows="3" class="mb-3" :rules="[rules.required('نتیجه')]" />
+        <VSelect v-model="closeForm.stage_id" :items="stageSelectItems" label="مرحله قیف" class="mb-3" />
+        <VSelect v-model="closeForm.status" :items="statusItems.filter(s => s.value)" label="وضعیت فرصت" class="mb-3" />
+        <VTextField v-model="closeForm.next_step_title" label="گام بعدی (اختیاری)" class="mb-3" />
+        <JalaliDateField v-model="closeForm.next_step_due_on" label="مهلت گام بعدی" />
+      </VForm>
+      <template #actions>
+        <VBtn variant="text" color="secondary" @click="closeOpen = false">انصراف</VBtn>
+        <VBtn color="primary" :loading="actionSaving" @click="submitClose">بستن گام</VBtn>
+      </template>
+    </FormDrawer>
+
+    <FormDrawer v-model="activityOpen" title="ثبت فعالیت" :subtitle="activeItem?.organization_name || ''" :width="440">
+      <VForm ref="activityFormRef" @submit.prevent="submitActivity">
+        <VTextField v-model="activityForm.subject" label="عنوان" class="mb-3" />
+        <VTextarea v-model="activityForm.body" label="شرح" rows="4" :rules="[rules.required('شرح')]" />
+      </VForm>
+      <template #actions>
+        <VBtn variant="text" color="secondary" @click="activityOpen = false">انصراف</VBtn>
+        <VBtn color="primary" :loading="actionSaving" @click="submitActivity">ثبت</VBtn>
+      </template>
+    </FormDrawer>
+
+    <FormDrawer v-model="assignOpen" title="ارجاع فرصت" :subtitle="activeItem?.organization_name || ''" :width="440">
+      <VForm ref="assignFormRef" @submit.prevent="submitAssign">
+        <VSelect v-model="assignForm.to_user_id" :items="companyUsers" label="ارجاع به" class="mb-3" :rules="[rules.required('کاربر')]" />
+        <VTextarea v-model="assignForm.note" label="یادداشت (اختیاری)" rows="3" />
+      </VForm>
+      <template #actions>
+        <VBtn variant="text" color="secondary" @click="assignOpen = false">انصراف</VBtn>
+        <VBtn color="primary" :loading="actionSaving" @click="submitAssign">ارجاع</VBtn>
       </template>
     </FormDrawer>
   </div>
