@@ -354,6 +354,7 @@ async function submitActivity(payload: {
   body: string
   result?: string | null
   happened_at?: string | null
+  step_id?: number | null
 }) {
   if (!activeItem.value)
     return
@@ -366,6 +367,7 @@ async function submitActivity(payload: {
       body: payload.body,
       result: payload.result || null,
       happened_at: payload.happened_at || null,
+      step_id: payload.step_id ?? null,
     })
     activityOpen.value = false
     success('فعالیت ثبت شد')
