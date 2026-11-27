@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Opportunity;
 use App\Models\OpportunityStage;
 use App\Models\OpportunityStep;
-use App\Services\CompanyContext;
+use App\Support\CompanyContext;
 use App\Services\OpportunityInsightService;
 use App\Services\OpportunityService;
 use Illuminate\Http\JsonResponse;
