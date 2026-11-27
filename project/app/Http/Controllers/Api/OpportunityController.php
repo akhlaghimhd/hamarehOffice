@@ -91,7 +91,7 @@ class OpportunityController extends Controller
                 'owner:id,name',
                 'assignee:id,name',
                 'steps' => fn ($q) => $q->orderBy('sort_order'),
-                'activities' => fn ($q) => $q->orderByDesc('happened_at')->limit(50),
+                'activities' => fn ($q) => $q->orderByDesc('id')->limit(50),
                 'referrals' => fn ($q) => $q->orderByDesc('id')->limit(20),
             ])
             ->where('company_id', $companyId)
@@ -150,7 +150,7 @@ class OpportunityController extends Controller
         return response()->json(['data' => $this->detail($opp->load([
             'stage', 'owner:id,name', 'assignee:id,name',
             'steps' => fn ($q) => $q->orderBy('sort_order'),
-            'activities' => fn ($q) => $q->orderByDesc('happened_at')->limit(50),
+            'activities' => fn ($q) => $q->orderByDesc('id')->limit(50),
         ]))]);
     }
 
@@ -181,6 +181,7 @@ class OpportunityController extends Controller
             'type' => $activity->type,
             'step_id' => $activity->step_id,
             'happened_at' => $activity->happened_at?->toIso8601String(),
+            'created_at' => $activity->created_at?->toIso8601String(),
         ]], 201);
     }
 
@@ -274,6 +275,7 @@ class OpportunityController extends Controller
                 'subject' => $a->subject,
                 'body' => $a->body,
                 'happened_at' => $a->happened_at?->format('Y-m-d H:i:s'),
+                'created_at' => $a->created_at?->format('Y-m-d H:i:s'),
             ])->values() ?? [],
         ]);
     }
