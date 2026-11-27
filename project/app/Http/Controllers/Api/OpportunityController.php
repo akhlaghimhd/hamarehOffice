@@ -162,6 +162,8 @@ class OpportunityController extends Controller
             'subject' => ['nullable', 'string', 'max:255'],
             'body' => ['required', 'string', 'max:5000'],
             'type' => ['nullable', 'string', 'max:50'],
+            'result' => ['nullable', 'string', 'max:2000'],
+            'happened_at' => ['nullable', 'date'],
         ]);
 
         $opp = Opportunity::query()
