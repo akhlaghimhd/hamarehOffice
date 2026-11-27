@@ -125,7 +125,6 @@ class OpportunityService
 
     public function updateBasic(Opportunity $opp, array $data): Opportunity
     {
-        $products = null;
         if (array_key_exists('products', $data)) {
             $products = array_values(array_filter(
                 $data['products'] ?? [],
@@ -180,6 +179,11 @@ class OpportunityService
 
     public function addActivity(Opportunity $opp, int $userId, array $data): OpportunityActivity
     {
+        $body = $data['body'] ?? '';
+        if (! empty($data['result'])) {
+            $body = trim($body."\n\nنتیجه/واکنش: ".$data['result']);
+        }
+
         $activity = OpportunityActivity::query()->create([
             'company_id' => $opp->company_id,
             'opportunity_id' => $opp->id,
@@ -187,7 +191,7 @@ class OpportunityService
             'user_id' => $userId,
             'type' => $data['type'] ?? 'note',
             'subject' => $data['subject'] ?? 'یادداشت',
-            'body' => $data['body'] ?? '',
+            'body' => $body,
             'happened_at' => $data['happened_at'] ?? now(),
         ]);
 
