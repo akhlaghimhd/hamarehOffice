@@ -1,1 +1,20 @@
 // Write your overrides
+
+/* جلوگیری از اسکرول افقی و اسکرول دوبل در کل اپ */
+html, body {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
+.layout-wrapper,
+.layout-content-wrapper,
+.layout-page-content,
+.page-content-container {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* منوی عمودی: اسکرول فقط وقتی لازم است، بدون نوار دائمی پهن */
+.layout-vertical-nav .nav-items {
+  scrollbar-width: thin;
+}
