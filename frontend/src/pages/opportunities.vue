@@ -174,6 +174,10 @@ function openEdit(item: any) {
   editOpen.value = true
 }
 
+function openSteps(item: any) {
+  router.push({ path: '/opportunities/' + item.id + '/steps', query: { from: 'list' } })
+}
+
 function openClose(item: any) {
   activeItem.value = item
   closeForm.value = {
@@ -420,7 +424,7 @@ onMounted(load)
         <template #item.actions="{ item }">
           <div class="d-flex align-center justify-end ga-0" @click.stop>
             <VBtn icon variant="text" size="small" title="ویرایش" @click="openEdit(item)"><VIcon icon="ri-pencil-line" size="18" /></VBtn>
-            <VBtn icon variant="text" size="small" color="success" title="بستن گام" @click="openClose(item)"><VIcon icon="ri-checkbox-circle-line" size="18" /></VBtn>
+            <VBtn icon variant="text" size="small" color="success" title="مدیریت گام‌ها" @click="openSteps(item)"><VIcon icon="ri-flag-2-line" size="18" /></VBtn>
             <VBtn icon variant="text" size="small" title="ثبت فعالیت" @click="openActivity(item)"><VIcon icon="ri-file-list-3-line" size="18" /></VBtn>
             <VBtn icon variant="text" size="small" title="ارجاع" @click="openAssign(item)"><VIcon icon="ri-user-add-line" size="18" /></VBtn>
             <VBtn icon variant="text" size="small" title="میزکار" @click="openItem(item.id)"><VIcon icon="ri-arrow-go-back-line" size="18" /></VBtn>
@@ -451,7 +455,7 @@ onMounted(load)
           <div class="text-caption text-medium-emphasis mb-2">{{ formatJalaliFa(item.next_step_due_on) }}</div>
           <div class="d-flex justify-end ga-0" @click.stop>
             <VBtn icon variant="text" size="small" title="ویرایش" @click="openEdit(item)"><VIcon icon="ri-pencil-line" size="18" /></VBtn>
-            <VBtn icon variant="text" size="small" color="success" title="بستن گام" @click="openClose(item)"><VIcon icon="ri-checkbox-circle-line" size="18" /></VBtn>
+            <VBtn icon variant="text" size="small" color="success" title="مدیریت گام‌ها" @click="openSteps(item)"><VIcon icon="ri-flag-2-line" size="18" /></VBtn>
             <VBtn icon variant="text" size="small" title="فعالیت" @click="openActivity(item)"><VIcon icon="ri-file-list-3-line" size="18" /></VBtn>
             <VBtn icon variant="text" size="small" title="ارجاع" @click="openAssign(item)"><VIcon icon="ri-user-add-line" size="18" /></VBtn>
           </div>
@@ -506,10 +510,10 @@ onMounted(load)
       </template>
     </FormDrawer>
 
-    <FormDrawer v-model="assignOpen" title="ارجاع فرصت" :subtitle="activeItem?.organization_name || ''" :width="440">
+    <FormDrawer v-model="assignOpen" title="ارجاع فرصت" :subtitle="activeItem ? activeItem.organization_name : ''" :width="420">
       <VForm ref="assignFormRef" @submit.prevent="submitAssign">
         <VSelect v-model="assignForm.to_user_id" :items="companyUsers" label="ارجاع به" class="mb-3" :rules="[rules.required('کاربر')]" />
-        <VTextarea v-model="assignForm.note" label="یادداشت (اختیاری)" rows="3" />
+        <VTextarea v-model="assignForm.note" label="یادداشت" rows="3" />
       </VForm>
       <template #actions>
         <VBtn variant="text" color="secondary" @click="assignOpen = false">انصراف</VBtn>
@@ -520,14 +524,10 @@ onMounted(load)
 </template>
 
 <style scoped>
-.mobile-list-card {
-  cursor: pointer;
-  transition: box-shadow 0.15s ease;
-}
-.mobile-list-card:active {
-  box-shadow: 0 2px 8px rgba(var(--v-shadow-key-umbra-color), 0.12);
-}
 .opportunity-table :deep(tbody tr) {
+  cursor: pointer;
+}
+.mobile-list-card {
   cursor: pointer;
 }
 </style>
