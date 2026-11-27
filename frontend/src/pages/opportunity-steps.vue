@@ -130,9 +130,13 @@ const isMyStep = computed(() => {
 const assigneeLabel = computed(() => isMyStep.value ? 'خودت' : (stepAssigneeName(viewingStep.value || currentStep.value) || 'نامشخص'))
 
 const smartInsight = computed(() => {
-  if (serverInsight.value?.bullets?.length) {
+  // اگر API مدل جواب داده (حتی با bullets خالی) همان را نشان بده
+  if (serverInsight.value && (serverInsight.value.source === 'llm' || serverInsight.value.bullets?.length)) {
+    const bullets = (serverInsight.value.bullets && serverInsight.value.bullets.length)
+      ? serverInsight.value.bullets
+      : [serverInsight.value.suggestion || 'تحلیل مدل آماده است']
     return {
-      bullets: serverInsight.value.bullets,
+      bullets,
       suggestion: serverInsight.value.suggestion || '',
       scoreLabel: serverInsight.value.score_label || 'پایدار',
       scoreTone: serverInsight.value.score_tone || 'ok',
