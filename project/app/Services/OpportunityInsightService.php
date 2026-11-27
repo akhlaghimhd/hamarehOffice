@@ -193,38 +193,28 @@ class OpportunityInsightService
         ];
 
         // فارسی ساده برای کاربر فروش
-        $system = "تو یک همکار باتجربه فروش هستی و برای همکارت حرف می‌زنی.
-"
-            ."فقط فارسی روزمره بنویس؛ مثل پیامک به همکار.
-"
-            ."هیچ واژه انگلیسی ننویس (نه Opportunity نه Stage نه Proposal نه Message نه Call).
-"
-            ."بگو: فرصت، مرحله، پیشنهاد قیمت، پیام، تماس تلفنی، جلسه.
-"
-            ."کوتاه، روشن و عملی باش.
-"
-            ."خروجی دقیقاً:
-"
-            ."نکته ۱: ...
-"
-            ."نکته ۲: ...
-"
-            ."نکته ۳: ...
-"
-            ."پیشنهاد: یک کار مشخص برای امروز
-"
-            ."وضعیت: پایدار یا حساس یا نیازمند توجه
-"
+        $system = "تو یک همکار باتجربه فروش هستی و برای همکارت حرف می‌زنی.\n"
+            ."فقط فارسی روزمره بنویس؛ مثل پیامک به همکار.\n"
+            ."هیچ واژه انگلیسی ننویس (نه Opportunity نه Stage نه Proposal نه Message نه Call).\n"
+            ."بگو: فرصت، مرحله، پیشنهاد قیمت، پیام، تماس تلفنی، جلسه.\n"
+            ."کوتاه، روشن و عملی باش.\n"
+            ."خروجی دقیقاً:\n"
+            ."نکته ۱: ...\n"
+            ."نکته ۲: ...\n"
+            ."نکته ۳: ...\n"
+            ."پیشنهاد: یک کار مشخص برای امروز\n"
+            ."وضعیت: پایدار یا حساس یا نیازمند توجه\n"
             ."چیز دیگری ننویس.";
 
-        $user = "با زبان ساده بگو این فرصت چه وضعی دارد و قدم بعدی چیست:
-"
+        $user = "با زبان ساده بگو این فرصت چه وضعی دارد و قدم بعدی چیست:\n"
             .json_encode($payloadContext, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
         $base = rtrim((string) config('services.openai.base_url'), '/');
         $model = (string) config('services.openai.model');
         $key = (string) config('services.openai.key');
-        $timeout = (int) config('services.openai.timeout', 45);
+        // Hard cap: long waits make Apache drop the response without CORS headers
+        // → browser reports misleading "Failed to fetch / CORS".
+        $timeout = min(20, max(5, (int) config('services.openai.timeout', 20)));
         $url = $base.'/chat/completions';
 
         $payload = [
@@ -244,17 +234,20 @@ class OpportunityInsightService
         Log::info('Opportunity insight LLM request', [
             'url' => $url,
             'model' => $model,
+            'timeout' => $timeout,
             'json_mode' => isset($payload['response_format']),
         ]);
 
-        $response = Http::timeout($timeout)
+        $response = Http::connectTimeout(3)
+            ->timeout($timeout)
             ->withToken($key)
             ->acceptJson()
             ->post($url, $payload);
 
         if (! $response->successful() && isset($payload['response_format'])) {
             unset($payload['response_format']);
-            $response = Http::timeout($timeout)
+            $response = Http::connectTimeout(3)
+                ->timeout($timeout)
                 ->withToken($key)
                 ->acceptJson()
                 ->post($url, $payload);
