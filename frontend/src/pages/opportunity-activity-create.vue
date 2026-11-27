@@ -137,6 +137,10 @@ function goBack() {
     router.push('/opportunities')
     return
   }
+  if (fromSource.value === 'steps') {
+    router.push('/opportunities/' + opportunityId.value + '/steps?from=activity')
+    return
+  }
   if (fromSource.value === 'detail') {
     router.push('/opportunities/' + opportunityId.value)
     return
@@ -148,12 +152,20 @@ function goBack() {
   router.push('/opportunities/' + opportunityId.value)
 }
 
+function goDashboard() {
+  router.push('/dashboard')
+}
+
+function goList() {
+  router.push('/opportunities')
+}
+
 function goOpportunity() {
   router.push('/opportunities/' + opportunityId.value)
 }
 
 function goStepManage() {
-  router.push('/opportunities/' + opportunityId.value + '/steps')
+  router.push('/opportunities/' + opportunityId.value + '/steps?from=activity')
 }
 
 function detectKind(file: File): LocalAttachment['kind'] {
@@ -365,14 +377,24 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="activity-page">
-    <div class="page-head d-flex flex-wrap align-center gap-2 mb-2">
+    <div class="page-breadcrumb d-flex flex-wrap align-center gap-1 text-caption text-medium-emphasis mb-2">
+      <button type="button" class="crumb-btn" @click="goDashboard">خانه</button>
+      <VIcon icon="ri-arrow-left-s-line" size="14" />
+      <button type="button" class="crumb-btn" @click="goList">فرصت‌ها</button>
+      <template v-if="detail?.organization_name">
+        <VIcon icon="ri-arrow-left-s-line" size="14" />
+        <span class="text-truncate">{{ detail.organization_name }}</span>
+      </template>
+    </div>
+
+    <div class="page-head d-flex flex-wrap align-center gap-2 mb-3">
       <VBtn
         icon
         variant="text"
         color="secondary"
         size="small"
         density="comfortable"
-        :title="fromSource === 'list' ? 'بازگشت به لیست فرصت‌ها' : 'بازگشت'"
+        :title="fromSource === 'list' ? 'بازگشت به لیست فرصت‌ها' : fromSource === 'steps' ? 'بازگشت به مدیریت گام‌ها' : 'بازگشت'"
         @click="goBack"
       >
         <VIcon icon="ri-arrow-right-s-line" size="26" />
@@ -589,23 +611,21 @@ onBeforeUnmount(() => {
 }
 .page-title { line-height: 1.4; }
 .page-head { margin-block-start: 0; }
+.crumb-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.crumb-btn:hover { color: rgb(var(--v-theme-primary)); }
 .equal-row { min-height: calc(100vh - 150px); }
 @media (min-width: 1280px) {
-  .panel-card {
-    min-height: calc(100vh - 150px);
-  }
-  .sidebar-stack {
-    min-height: calc(100vh - 150px);
-  }
-  .history-card {
-    min-height: 0;
-    flex: 1 1 auto;
-  }
-  .history-scroll {
-    overflow-y: auto;
-    min-height: 0;
-    max-height: min(40vh, 320px);
-  }
+  .panel-card { min-height: calc(100vh - 150px); }
+  .sidebar-stack { min-height: calc(100vh - 150px); }
+  .history-card { min-height: 0; flex: 1 1 auto; }
+  .history-scroll { overflow-y: auto; min-height: 0; max-height: min(40vh, 320px); }
 }
 .opp-info-card {
   background: rgb(var(--v-theme-surface)) !important;
