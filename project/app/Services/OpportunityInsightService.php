@@ -32,6 +32,7 @@ class OpportunityInsightService
             Log::warning('Opportunity insight LLM failed: '.$e->getMessage());
         }
 
+        // Always keep UI working even if LLM is down
         return array_merge($local, [
             'source' => 'local',
             'llm_available' => true,
@@ -44,6 +45,24 @@ class OpportunityInsightService
         $key = config('services.openai.key');
 
         return is_string($key) && trim($key) !== '';
+    }
+
+    private function usesJsonMode(): bool
+    {
+        $flag = config('services.openai.json_mode');
+
+        if ($flag === null || $flag === '') {
+            $base = (string) config('services.openai.base_url');
+
+            // Ollama / local OpenAI-compatible servers often reject response_format
+            if (str_contains($base, '11434') || str_contains($base, 'localhost') || str_contains($base, '127.0.0.1')) {
+                return false;
+            }
+
+            return true;
+        }
+
+        return filter_var($flag, FILTER_VALIDATE_BOOLEAN);
     }
 
     private function localInsight(Opportunity $opp): array
@@ -93,8 +112,9 @@ class OpportunityInsightService
             $bullets[] = '⚠ '.$overdue->count().' گام از مهلت گذشته — اولویت فوری بستن یا تمدید.';
             $scoreTone = 'danger';
             $scoreLabel = 'نیازمند توجه';
-        } elseif ($current?->due_on && $current->due_on->copy()->startOfDay()->diffInDays($today, false) >= -2) {
-            $days = $today->diffInDays($current->due_on->copy()->startOfDay(), false);
+        } elseif ($current?->due_on) {
+            $due = $current->due_on->copy()->startOfDay();
+            $days = $today->diffInDays($due, false);
             if ($days <= 2) {
                 $bullets[] = 'مهلت گام جاری نزدیک است؛ امروز پیگیری فعال توصیه می‌شود.';
                 $scoreTone = 'warn';
@@ -167,28 +187,42 @@ class OpportunityInsightService
 
         $system = 'تو مشاور فروش CRM فارسی هستی. فقط JSON معتبر برگردان با کلیدهای: '
             .'bullets (آرایه حداکثر 5 رشته کوتاه)، suggestion (یک جمله)، score_label (یکی از: پایدار|حساس|نیازمند توجه)، '
-            .'score_tone (یکی از: ok|warn|danger). بدون توضیح اضافه.';
+            .'score_tone (یکی از: ok|warn|danger). بدون توضیح اضافه و بدون markdown.';
 
         $user = "بر اساس این داده فرصت، خلاصه وضعیت و پیشنهاد گام/فعالیت بعدی بده:\n"
             .json_encode($payloadContext, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
-        $base = config('services.openai.base_url');
-        $model = config('services.openai.model');
-        $key = config('services.openai.key');
-        $timeout = (int) config('services.openai.timeout', 20);
+        $base = (string) config('services.openai.base_url');
+        $model = (string) config('services.openai.model');
+        $key = (string) config('services.openai.key');
+        $timeout = (int) config('services.openai.timeout', 45);
+
+        $payload = [
+            'model' => $model,
+            'temperature' => 0.3,
+            'messages' => [
+                ['role' => 'system', 'content' => $system],
+                ['role' => 'user', 'content' => $user],
+            ],
+        ];
+
+        if ($this->usesJsonMode()) {
+            $payload['response_format'] = ['type' => 'json_object'];
+        }
 
         $response = Http::timeout($timeout)
             ->withToken($key)
             ->acceptJson()
-            ->post($base.'/chat/completions', [
-                'model' => $model,
-                'temperature' => 0.3,
-                'response_format' => ['type' => 'json_object'],
-                'messages' => [
-                    ['role' => 'system', 'content' => $system],
-                    ['role' => 'user', 'content' => $user],
-                ],
-            ]);
+            ->post($base.'/chat/completions', $payload);
+
+        // Retry once without response_format if server rejected it (common on Ollama)
+        if (! $response->successful() && isset($payload['response_format'])) {
+            unset($payload['response_format']);
+            $response = Http::timeout($timeout)
+                ->withToken($key)
+                ->acceptJson()
+                ->post($base.'/chat/completions', $payload);
+        }
 
         if (! $response->successful()) {
             Log::warning('LLM insight HTTP '.$response->status().': '.$response->body());
@@ -201,7 +235,7 @@ class OpportunityInsightService
             return null;
         }
 
-        $decoded = json_decode($content, true);
+        $decoded = $this->parseJsonContent($content);
         if (! is_array($decoded)) {
             return null;
         }
@@ -222,5 +256,21 @@ class OpportunityInsightService
             'score_label' => (string) ($decoded['score_label'] ?? $local['score_label']),
             'score_tone' => $tone,
         ];
+    }
+
+    private function parseJsonContent(string $content): ?array
+    {
+        $content = trim($content);
+
+        // Strip ```json ... ``` fences from local models
+        if (preg_match('/```(?:json)?\s*(\{.*\})\s*```/s', $content, $m)) {
+            $content = $m[1];
+        } elseif (preg_match('/(\{.*\})/s', $content, $m)) {
+            $content = $m[1];
+        }
+
+        $decoded = json_decode($content, true);
+
+        return is_array($decoded) ? $decoded : null;
     }
 }
