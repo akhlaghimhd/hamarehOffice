@@ -61,4 +61,13 @@ export default defineConfig({
       './src/**/*.vue',
     ],
   },
+  // در dev درخواست‌های /api از همین origin می‌روند → بدون CORS
+  server: {
+    proxy: {
+      '/api': {
+        target: process.env.VITE_PROXY_TARGET || 'http://127.0.0.1:8088',
+        changeOrigin: true,
+      },
+    },
+  },
 })
