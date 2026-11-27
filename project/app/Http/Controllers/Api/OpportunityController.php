@@ -11,6 +11,8 @@ use App\Services\OpportunityService;
 use App\Support\CompanyContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class OpportunityController extends Controller
 {
@@ -108,16 +110,39 @@ class OpportunityController extends Controller
     {
         $companyId = $context->check();
 
-        $opp = Opportunity::query()
-            ->with([
-                'stage:id,name,code',
-                'steps' => fn ($q) => $q->orderBy('sort_order'),
-                'activities' => fn ($q) => $q->orderByDesc('id')->limit(30),
-            ])
-            ->where('company_id', $companyId)
-            ->findOrFail($id);
+        try {
+            $opp = Opportunity::query()
+                ->with([
+                    'stage:id,name,code',
+                    'steps' => fn ($q) => $q->orderBy('sort_order'),
+                    'activities' => fn ($q) => $q->orderByDesc('id')->limit(30),
+                ])
+                ->where('company_id', $companyId)
+                ->findOrFail($id);
 
-        return response()->json(['data' => $this->insightService->forOpportunity($opp)]);
+            $data = $this->insightService->forOpportunity($opp);
+
+            return response()->json(['data' => $data]);
+        } catch (Throwable $e) {
+            Log::error('Opportunity insight endpoint failed: '.$e->getMessage(), [
+                'opportunity_id' => $id,
+                'exception' => $e::class,
+                'file' => $e->getFile().':'.$e->getLine(),
+            ]);
+
+            // هرگز 500 به فرانت نده — تحلیل حداقلی تا UI نشکند
+            return response()->json([
+                'data' => [
+                    'bullets' => ['خلاصه فرصت موقتاً در دسترس نیست. صفحه را چند ثانیه بعد تازه کنید.'],
+                    'suggestion' => 'یک فعالیت کوتاه ثبت کنید و نتیجه را بنویسید.',
+                    'score_label' => 'پایدار',
+                    'score_tone' => 'ok',
+                    'source' => 'local',
+                    'llm_available' => false,
+                    'llm_error' => true,
+                ],
+            ]);
+        }
     }
 
     public function update(Request $request, int $id, CompanyContext $context): JsonResponse
