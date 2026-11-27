@@ -29,34 +29,4 @@ return [
         ],
     ],
 
-    /*
-    | OpenAI-compatible chat API (optional — same code for local & host).
-    |
-    | Local (Ollama via Docker):
-    |   OPENAI_API_KEY=ollama
-    |   OPENAI_BASE_URL=http://host.docker.internal:11434/v1
-    |   OPENAI_MODEL=llama3.2:1b
-    |   OPENAI_JSON_MODE=false
-    |   OPENAI_TIMEOUT=20
-    |
-    | Host (OpenAI):
-    |   OPENAI_API_KEY=sk-...
-    |   OPENAI_BASE_URL=https://api.openai.com/v1
-    |   OPENAI_MODEL=gpt-4o-mini
-    |   OPENAI_JSON_MODE=true
-    |
-    | Empty OPENAI_API_KEY => local heuristic only (always safe offline).
-    |
-    | Keep timeout short so Apache never cuts the response without CORS headers
-    | (browser then shows a misleading "CORS / Failed to fetch").
-    */
-    'openai' => [
-        'key' => env('OPENAI_API_KEY'),
-        'base_url' => rtrim((string) env('OPENAI_BASE_URL', 'https://api.openai.com/v1'), '/'),
-        'model' => env('OPENAI_MODEL', 'gpt-4o-mini'),
-        'timeout' => (int) env('OPENAI_TIMEOUT', 20),
-        // null = auto (false for Ollama-like URLs, true otherwise)
-        'json_mode' => env('OPENAI_JSON_MODE'),
-    ],
-
 ];
