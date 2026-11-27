@@ -31,12 +31,23 @@
   --font-vazir: 'Vazir', Tahoma, 'Segoe UI', sans-serif;
 }
 
+html {
+  overflow-x: hidden;
+}
+
 html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 body,
 #app,
 .v-application,
 .v-overlay-container {
   font-family: var(--font-vazir) !important;
+  font-weight: 400;
+  letter-spacing: normal;
 }
 
 /* تمام متن‌ها به جز آیکن‌ها */
@@ -51,6 +62,70 @@ body,
 .v-application textarea,
 .v-application select {
   font-family: var(--font-vazir) !important;
+}
+
+/*
+ * وزن سبک‌تر سراسری: medium/bold باعث پهن‌شدن حروف فارسی و
+ * توهمی/اسکرول افقی می‌شود → یک پله پایین‌تر
+ */
+.v-application .font-weight-black,
+.v-application .font-weight-bold,
+.v-application .text-h1,
+.v-application .text-h2,
+.v-application .text-h3,
+.v-application .text-h4,
+.v-application .text-h5,
+.v-application .text-h6,
+.v-application .v-card-title,
+.v-application strong {
+  font-weight: 500 !important;
+}
+
+.v-application .font-weight-medium,
+.v-application .font-weight-semibold,
+.v-application .text-subtitle-1,
+.v-application .text-subtitle-2,
+.v-application .v-list-item-title,
+.v-application .v-btn,
+.v-application .v-tab,
+.v-application .v-chip {
+  font-weight: 400 !important;
+}
+
+.v-application .font-weight-regular {
+  font-weight: 400 !important;
+}
+
+.v-application .font-weight-light {
+  font-weight: 300 !important;
+}
+
+/* شکستن متن بلند تا از کادر بیرون نزند */
+.v-application .text-wrap,
+.v-application .v-card-title,
+.v-application .v-list-item-title,
+.v-application .v-chip,
+.v-application td,
+.v-application th,
+.page-title,
+.hero-title {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.layout-page-content,
+.layout-content-wrapper,
+.v-main,
+.v-container,
+.v-row,
+.v-col {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.v-table,
+.v-table__wrapper {
+  max-width: 100%;
 }
 
 /* آیکن‌ها را دست نزن */
@@ -70,6 +145,7 @@ body,
 
 .layout-nav-type-vertical .layout-page-content {
   padding-inline: 1.25rem !important;
+  overflow-x: hidden;
 }
 
 @media (min-width: 1280px) {
@@ -80,6 +156,7 @@ body,
 
 .layout-nav-type-vertical .layout-content-wrapper {
   background: rgb(var(--v-theme-background));
+  overflow-x: hidden;
 }
 
 /* هدر محتوا کمی جدا از منو */
