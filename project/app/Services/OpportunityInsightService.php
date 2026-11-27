@@ -35,7 +35,7 @@ class OpportunityInsightService
             ]);
         }
 
-        // Always keep UI working even if LLM is down
+        // Only when LLM is unreachable / empty
         return array_merge($local, [
             'source' => 'local',
             'llm_available' => true,
@@ -57,7 +57,6 @@ class OpportunityInsightService
         if ($flag === null || $flag === '') {
             $base = (string) config('services.openai.base_url');
 
-            // Ollama / local OpenAI-compatible servers often reject response_format
             if (
                 str_contains($base, '11434')
                 || str_contains($base, 'localhost')
@@ -188,26 +187,23 @@ class OpportunityInsightService
             'activities' => ($opp->activities ?? collect())->sortByDesc('id')->take(8)->values()->map(fn ($a) => [
                 'type' => $a->type,
                 'subject' => $a->subject,
-                'body' => mb_substr((string) $a->body, 0, 240),
+                'body' => mb_substr((string) $a->body, 0, 180),
                 'happened_at' => $a->happened_at?->format('Y-m-d'),
             ])->all(),
-            'local_hint' => [
-                'score_label' => $local['score_label'] ?? null,
-                'score_tone' => $local['score_tone'] ?? null,
-                'suggestion' => $local['suggestion'] ?? null,
-            ],
         ];
 
-        $system = 'تو مشاور فروش CRM فارسی هستی. فقط یک JSON معتبر و فشرده برگردان. کلیدها دقیقاً: '
-            .'"bullets" (آرایه ۲ تا ۴ رشته کوتاه فارسی)، '
-            .'"suggestion" (یک جمله فارسی)، '
-            .'"score_label" (فقط یکی از: پایدار | حساس | نیازمند توجه)، '
-            .'"score_tone" (فقط یکی از: ok | warn | danger). '
-            .'هیچ متنی بیرون از JSON ننویس. ستاره و markdown ممنوع.';
+        // فرمت ساده برای مدل‌های کوچک لوکال (JSON اجباری نیست)
+        $system = "تو مشاور فروش CRM به زبان فارسی هستی.\n"
+            ."خروجی را دقیقاً با این قالب بده (بدون ستاره و بدون JSON):\n"
+            ."نکته ۱: ...\n"
+            ."نکته ۲: ...\n"
+            ."نکته ۳: ...\n"
+            ."پیشنهاد: یک جمله عملی\n"
+            ."وضعیت: پایدار یا حساس یا نیازمند توجه\n"
+            ."فقط همین خطوط را بنویس.";
 
-        $user = "داده فرصت:\n"
-            .json_encode($payloadContext, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
-            ."\nفقط JSON بده.";
+        $user = "تحلیل کوتاه این فرصت:\n"
+            .json_encode($payloadContext, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
         $base = rtrim((string) config('services.openai.base_url'), '/');
         $model = (string) config('services.openai.model');
@@ -217,13 +213,14 @@ class OpportunityInsightService
 
         $payload = [
             'model' => $model,
-            'temperature' => 0.1,
+            'temperature' => 0.2,
             'messages' => [
                 ['role' => 'system', 'content' => $system],
                 ['role' => 'user', 'content' => $user],
             ],
         ];
 
+        // برای Ollama از response_format استفاده نکن
         if ($this->usesJsonMode()) {
             $payload['response_format'] = ['type' => 'json_object'];
         }
@@ -239,7 +236,6 @@ class OpportunityInsightService
             ->acceptJson()
             ->post($url, $payload);
 
-        // Retry once without response_format if server rejected it (common on Ollama)
         if (! $response->successful() && isset($payload['response_format'])) {
             unset($payload['response_format']);
             $response = Http::timeout($timeout)
@@ -258,67 +254,181 @@ class OpportunityInsightService
 
         $content = data_get($response->json(), 'choices.0.message.content');
         if (! is_string($content) || trim($content) === '') {
-            Log::warning('LLM insight empty content', ['url' => $url, 'body' => $response->body()]);
+            Log::warning('LLM insight empty content', ['url' => $url]);
 
             return null;
         }
 
+        // 1) JSON
         $decoded = $this->parseJsonContent($content);
-        if (! is_array($decoded)) {
-            // مدل کوچک اغلب JSON نمی‌دهد — متن خام را قاطی نکن؛ فقط تحلیل محلی بمان
-            Log::info('LLM insight JSON parse failed; keeping local insight only', [
-                'preview' => mb_substr($content, 0, 180),
-            ]);
-
-            return null;
+        if (is_array($decoded)) {
+            $structured = $this->fromStructured($decoded, $local);
+            if ($structured) {
+                return $structured;
+            }
         }
 
+        // 2) متن ساده مدل — اولویت با مدل، ظاهر تمیز
+        $fromPlain = $this->fromPlainText($content, $local);
+        if ($fromPlain) {
+            Log::info('LLM insight used plain-text parser');
+
+            return $fromPlain;
+        }
+
+        Log::warning('LLM insight could not parse content', ['preview' => mb_substr($content, 0, 240)]);
+
+        return null;
+    }
+
+    private function fromStructured(array $decoded, array $local): ?array
+    {
         $bullets = $decoded['bullets'] ?? null;
         if (is_string($bullets)) {
-            $bullets = array_values(array_filter(array_map('trim', preg_split('/[\n\r•\-]+/u', $bullets) ?: [])));
+            $bullets = preg_split('/[\n\r]+/u', $bullets) ?: [];
         }
         if (! is_array($bullets)) {
             $bullets = [];
         }
 
-        $bullets = array_values(array_filter(array_map(function ($b) {
-            $b = trim((string) $b);
-            $b = preg_replace('/^[*\-•\s]+/u', '', $b) ?? $b;
-            $b = preg_replace('/\*+/u', '', $b) ?? $b;
-            $b = trim($b);
+        $bullets = $this->cleanBulletList($bullets);
+        $suggestion = $this->cleanLine($decoded['suggestion'] ?? null);
+        $scoreLabel = $this->normalizeScoreLabel($decoded['score_label'] ?? null) ?? ($local['score_label'] ?? 'پایدار');
+        $scoreTone = $this->normalizeTone($decoded['score_tone'] ?? null) ?? ($local['score_tone'] ?? 'ok');
 
-            // رد کردن تکه‌های خام/انگلیسی مدل
-            if ($b === '' || mb_strlen($b) < 6) {
-                return null;
-            }
-            if (preg_match('/\b(Tone|bullets|score_tone|score_label|suggestion)\b/i', $b)) {
-                return null;
-            }
-
-            return $b;
-        }, $bullets)));
+        if ($bullets === [] && ! $suggestion) {
+            return null;
+        }
 
         if ($bullets === []) {
-            // اگر بولت تمیز نبود، از محلی استفاده کن و فقط پیشنهاد مدل را در صورت تمیز بودن بگیر
-            $suggestion = $this->cleanSuggestion($decoded['suggestion'] ?? null) ?? ($local['suggestion'] ?? '');
-
-            return [
-                'bullets' => $local['bullets'],
-                'suggestion' => $suggestion,
-                'score_label' => $this->normalizeScoreLabel($decoded['score_label'] ?? null) ?? ($local['score_label'] ?? 'پایدار'),
-                'score_tone' => $this->normalizeTone($decoded['score_tone'] ?? null) ?? ($local['score_tone'] ?? 'ok'),
-            ];
+            $bullets = array_slice($local['bullets'] ?? [], 0, 2);
         }
 
         return [
             'bullets' => array_slice($bullets, 0, 5),
-            'suggestion' => $this->cleanSuggestion($decoded['suggestion'] ?? null) ?? ($local['suggestion'] ?? ''),
-            'score_label' => $this->normalizeScoreLabel($decoded['score_label'] ?? null) ?? ($local['score_label'] ?? 'پایدار'),
-            'score_tone' => $this->normalizeTone($decoded['score_tone'] ?? null) ?? ($local['score_tone'] ?? 'ok'),
+            'suggestion' => $suggestion ?: ($local['suggestion'] ?? ''),
+            'score_label' => $scoreLabel,
+            'score_tone' => $scoreTone,
         ];
     }
 
-    private function cleanSuggestion(mixed $value): ?string
+    private function fromPlainText(string $content, array $local): ?array
+    {
+        $raw = str_replace(["\r\n", "\r"], "\n", $content);
+        $raw = preg_replace('/\*+/u', '', $raw) ?? $raw;
+
+        $lines = preg_split('/\n+/u', $raw) ?: [];
+        $bullets = [];
+        $suggestion = null;
+        $scoreLabel = null;
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if ($line === '') {
+                continue;
+            }
+
+            // رد کلیدهای خام انگلیسی
+            if (preg_match('/^(Tone|score_tone|score_label|bullets)\s*[:=]/i', $line)) {
+                if (preg_match('/warn/i', $line)) {
+                    $scoreLabel = $scoreLabel ?: 'حساس';
+                } elseif (preg_match('/danger|critical/i', $line)) {
+                    $scoreLabel = $scoreLabel ?: 'نیازمند توجه';
+                } elseif (preg_match('/ok|stable/i', $line)) {
+                    $scoreLabel = $scoreLabel ?: 'پایدار';
+                }
+                continue;
+            }
+
+            if (preg_match('/^(پیشنهاد|اقدام بعدی|گام بعدی)\s*[:：\-]\s*(.+)$/u', $line, $m)) {
+                $suggestion = $this->cleanLine($m[2]);
+                continue;
+            }
+
+            if (preg_match('/^(وضعیت|ارزیابی)\s*[:：\-]\s*(.+)$/u', $line, $m)) {
+                $scoreLabel = $this->normalizeScoreLabel(trim($m[2])) ?? $scoreLabel;
+                continue;
+            }
+
+            // نکات شماره‌دار / خط تیره
+            $line = preg_replace('/^(نکته\s*\d+\s*[:：\-]|\d+[\.\)\-]\s*|[-•]\s*)/u', '', $line) ?? $line;
+            $line = $this->cleanLine($line);
+            if ($line && mb_strlen($line) >= 8) {
+                $bullets[] = $line;
+            }
+        }
+
+        // اگر مدل یک پاراگراف داد
+        if ($bullets === [] && $suggestion === null) {
+            $one = $this->cleanLine(preg_replace('/\s+/u', ' ', $raw));
+            if ($one && mb_strlen($one) >= 12) {
+                // به جملات کوتاه بشکن
+                $parts = preg_split('/(?<=[.!?؟۔])\s+/u', $one) ?: [$one];
+                foreach ($parts as $p) {
+                    $p = $this->cleanLine($p);
+                    if ($p && mb_strlen($p) >= 8) {
+                        $bullets[] = $p;
+                    }
+                    if (count($bullets) >= 4) {
+                        break;
+                    }
+                }
+                if (count($bullets) > 1) {
+                    $suggestion = array_pop($bullets);
+                } elseif ($bullets !== []) {
+                    $suggestion = $bullets[0];
+                }
+            }
+        }
+
+        $bullets = $this->cleanBulletList($bullets);
+
+        if ($bullets === [] && ! $suggestion) {
+            return null;
+        }
+
+        // اگر فقط پیشنهاد داشت، دو نکته زمینه‌ای محلی برای خوانایی
+        if ($bullets === []) {
+            $bullets = array_slice($local['bullets'] ?? [], 0, 2);
+        }
+
+        if (! $suggestion) {
+            $suggestion = $local['suggestion'] ?? 'پیگیری فعال و ثبت نتیجه پیشنهاد می‌شود.';
+        }
+
+        $scoreLabel = $scoreLabel ?? ($local['score_label'] ?? 'پایدار');
+        $scoreTone = match ($scoreLabel) {
+            'نیازمند توجه' => 'danger',
+            'حساس' => 'warn',
+            default => 'ok',
+        };
+
+        return [
+            'bullets' => array_slice($bullets, 0, 5),
+            'suggestion' => $suggestion,
+            'score_label' => $scoreLabel,
+            'score_tone' => $scoreTone,
+        ];
+    }
+
+    private function cleanBulletList(array $items): array
+    {
+        $out = [];
+        foreach ($items as $b) {
+            $line = $this->cleanLine($b);
+            if (! $line) {
+                continue;
+            }
+            if (preg_match('/\b(Tone|bullets|score_tone|score_label)\b/i', $line)) {
+                continue;
+            }
+            $out[] = $line;
+        }
+
+        return array_values(array_unique($out));
+    }
+
+    private function cleanLine(mixed $value): ?string
     {
         if (! is_string($value)) {
             return null;
@@ -326,16 +436,14 @@ class OpportunityInsightService
 
         $s = trim($value);
         $s = preg_replace('/\*+/u', '', $s) ?? $s;
+        $s = preg_replace('/^[-•\s]+/u', '', $s) ?? $s;
         $s = trim($s);
 
-        if ($s === '' || mb_strlen($s) < 8) {
-            return null;
-        }
-        if (preg_match('/\b(Tone|bullets|score_tone|score_label)\b/i', $s)) {
+        if ($s === '' || mb_strlen($s) < 6) {
             return null;
         }
 
-        return mb_substr($s, 0, 220);
+        return mb_substr($s, 0, 240);
     }
 
     private function normalizeTone(mixed $tone): ?string
@@ -356,6 +464,16 @@ class OpportunityInsightService
         }
 
         $label = trim($label);
+        if (str_contains($label, 'نیازمند')) {
+            return 'نیازمند توجه';
+        }
+        if (str_contains($label, 'حساس')) {
+            return 'حساس';
+        }
+        if (str_contains($label, 'پایدار')) {
+            return 'پایدار';
+        }
+
         $allowed = ['پایدار', 'حساس', 'نیازمند توجه'];
 
         return in_array($label, $allowed, true) ? $label : null;
@@ -365,7 +483,6 @@ class OpportunityInsightService
     {
         $content = trim($content);
 
-        // Strip ```json ... ``` fences from local models
         if (preg_match('/```(?:json)?\s*(\{.*\})\s*```/s', $content, $m)) {
             $content = $m[1];
         } elseif (preg_match('/(\{.*\})/s', $content, $m)) {
