@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\CompanyUser;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -24,13 +25,13 @@ class AuthController extends Controller
             ]);
         }
 
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = Auth::user();
         $token = $user->createToken('materio')->plainTextToken;
 
         return response()->json([
             'token' => $token,
-            'user' => $user,
+            'user' => $this->userPayload($user),
             'companies' => $this->companiesFor($user->id),
         ]);
     }
@@ -44,12 +45,62 @@ class AuthController extends Controller
 
     public function user(Request $request): JsonResponse
     {
+        /** @var User $user */
         $user = $request->user();
 
         return response()->json([
-            'user' => $user,
+            'user' => $this->userPayload($user, $request->header('X-Company-Id')),
             'companies' => $this->companiesFor($user->id),
         ]);
+    }
+
+    private function userPayload(User $user, mixed $companyId = null): array
+    {
+        $access = $this->accessFor($user->id, $companyId ? (int) $companyId : null);
+
+        return [
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'roles' => $access['roles'],
+            'permissions' => $access['permissions'],
+        ];
+    }
+
+    /**
+     * @return array{roles: list<string>, permissions: list<string>}
+     */
+    private function accessFor(int $userId, ?int $companyId = null): array
+    {
+        $q = CompanyUser::query()
+            ->with(['roles.permissions'])
+            ->where('user_id', $userId)
+            ->where('is_active', true);
+
+        if ($companyId) {
+            $q->where('company_id', $companyId);
+        } else {
+            $q->orderByDesc('is_default');
+        }
+
+        $membership = $q->first();
+        if (! $membership) {
+            return ['roles' => [], 'permissions' => []];
+        }
+
+        $roles = [];
+        $permissions = [];
+        foreach ($membership->roles as $role) {
+            $roles[] = $role->name;
+            foreach ($role->permissions as $perm) {
+                $permissions[] = $perm->name;
+            }
+        }
+
+        return [
+            'roles' => array_values(array_unique($roles)),
+            'permissions' => array_values(array_unique($permissions)),
+        ];
     }
 
     private function companiesFor(int $userId): array
