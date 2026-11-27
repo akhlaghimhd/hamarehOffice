@@ -7,11 +7,17 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    ActivityFormDialog: typeof import('./src/components/forms/ActivityFormDialog.vue')['default']
+    AppNotify: typeof import('./src/components/forms/AppNotify.vue')['default']
     CardStatisticsHorizontal: typeof import('./src/@core/components/cards/CardStatisticsHorizontal.vue')['default']
     CardStatisticsVertical: typeof import('./src/@core/components/cards/CardStatisticsVertical.vue')['default']
     CardStatisticsWithImages: typeof import('./src/@core/components/cards/CardStatisticsWithImages.vue')['default']
     ErrorHeader: typeof import('./src/components/ErrorHeader.vue')['default']
+    FormDrawer: typeof import('./src/components/forms/FormDrawer.vue')['default']
+    JalaliDateField: typeof import('./src/components/forms/JalaliDateField.vue')['default']
+    MoneyField: typeof import('./src/components/forms/MoneyField.vue')['default']
     MoreBtn: typeof import('./src/@core/components/MoreBtn.vue')['default']
+    PhoneField: typeof import('./src/components/forms/PhoneField.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     ThemeSwitcher: typeof import('./src/@core/components/ThemeSwitcher.vue')['default']

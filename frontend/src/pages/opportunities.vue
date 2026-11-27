@@ -53,6 +53,9 @@ const closeForm = ref({
 
 const assignForm = ref({
   to_user_id: null as number | null,
+  step_title: '',
+  step_due_on: null as string | null,
+  priority: 'normal',
   note: '',
 })
 
@@ -197,7 +200,10 @@ function openActivity(item: any) {
 async function openAssign(item: any) {
   activeItem.value = item
   assignForm.value = {
-    to_user_id: item.assignee?.id ?? null,
+    to_user_id: null,
+    step_title: item.next_step || item.current_step?.title || '',
+    step_due_on: item.next_step_due_on || item.current_step?.due_on || null,
+    priority: 'normal',
     note: '',
   }
   if (!companyUsers.value.length) {
@@ -357,6 +363,9 @@ async function submitAssign() {
   try {
     await assignOpportunity(activeItem.value.id, {
       to_user_id: assignForm.value.to_user_id,
+      step_title: assignForm.value.step_title,
+      step_due_on: assignForm.value.step_due_on,
+      priority: assignForm.value.priority,
       note: assignForm.value.note || null,
     })
     assignOpen.value = false
@@ -512,8 +521,11 @@ onMounted(load)
 
     <FormDrawer v-model="assignOpen" title="ارجاع فرصت" :subtitle="activeItem ? activeItem.organization_name : ''" :width="420">
       <VForm ref="assignFormRef" @submit.prevent="submitAssign">
-        <VSelect v-model="assignForm.to_user_id" :items="companyUsers" label="ارجاع به" class="mb-3" :rules="[rules.required('کاربر')]" />
-        <VTextarea v-model="assignForm.note" label="یادداشت" rows="3" />
+        <VSelect v-model="assignForm.to_user_id" :items="companyUsers" label="ارجاع به *" class="mb-4" :rules="[rules.required('کاربر')]" />
+        <VTextField v-model="assignForm.step_title" label="ماموریت / عنوان گام برای مقصد *" class="mb-4" :rules="[rules.required('ماموریت')]" hint="این عنوان به‌عنوان گام جاری برای کاربر مقصد ثبت می‌شود" persistent-hint />
+        <JalaliDateField v-model="assignForm.step_due_on" label="مهلت ماموریت" class="mb-4" />
+        <VSelect v-model="assignForm.priority" :items="[{title:'عادی',value:'normal'},{title:'بالا',value:'high'},{title:'فوری',value:'urgent'},{title:'پایین',value:'low'}]" label="اولویت" class="mb-4" />
+        <VTextarea v-model="assignForm.note" label="توضیح برای مقصد" rows="3" class="mb-2" />
       </VForm>
       <template #actions>
         <VBtn variant="text" color="secondary" @click="assignOpen = false">انصراف</VBtn>
