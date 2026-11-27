@@ -184,10 +184,12 @@ class OpportunityService
             $body = trim($body."\n\nنتیجه/واکنش: ".$data['result']);
         }
 
+        $stepId = $data['step_id'] ?? $opp->currentStep?->id;
+
         $activity = OpportunityActivity::query()->create([
             'company_id' => $opp->company_id,
             'opportunity_id' => $opp->id,
-            'step_id' => $opp->currentStep?->id,
+            'step_id' => $stepId,
             'user_id' => $userId,
             'type' => $data['type'] ?? 'note',
             'subject' => $data['subject'] ?? 'یادداشت',

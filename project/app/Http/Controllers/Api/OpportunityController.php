@@ -164,6 +164,7 @@ class OpportunityController extends Controller
             'type' => ['nullable', 'string', 'max:50'],
             'result' => ['nullable', 'string', 'max:2000'],
             'happened_at' => ['nullable', 'date'],
+            'step_id' => ['nullable', 'integer'],
         ]);
 
         $opp = Opportunity::query()
@@ -178,6 +179,7 @@ class OpportunityController extends Controller
             'subject' => $activity->subject,
             'body' => $activity->body,
             'type' => $activity->type,
+            'step_id' => $activity->step_id,
             'happened_at' => $activity->happened_at?->toIso8601String(),
         ]], 201);
     }
@@ -263,7 +265,15 @@ class OpportunityController extends Controller
                 'due_on' => $s->due_on?->format('Y-m-d'),
                 'status' => $s->status,
                 'result' => $s->result,
-                'is_current' => $s->is_current,
+                'is_current' => (bool) $s->is_current,
+            ])->values() ?? [],
+            'activities' => $o->activities?->map(fn ($a) => [
+                'id' => $a->id,
+                'step_id' => $a->step_id,
+                'type' => $a->type,
+                'subject' => $a->subject,
+                'body' => $a->body,
+                'happened_at' => $a->happened_at?->format('Y-m-d H:i:s'),
             ])->values() ?? [],
         ]);
     }
