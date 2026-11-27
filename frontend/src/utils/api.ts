@@ -1,4 +1,9 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8088'
+/**
+ * در dev با پروکسی Vite: خالی = same-origin → /api/... روی پورت Vite
+ * در production یا اگر VITE_API_URL ست شده باشد: آدرس کامل بک‌اند
+ */
+const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ??
+  (import.meta.env.DEV ? '' : 'http://127.0.0.1:8088')
 
 const TOKEN_KEY = 'hamareh_token'
 const USER_KEY = 'hamareh_user'
