@@ -145,6 +145,18 @@ export async function fetchOpportunity(id: number) {
   return api<{ data: any }>(`/api/opportunities/${id}`)
 }
 
+export async function fetchOpportunityInsight(id: number) {
+  return api<{ data: {
+    bullets: string[]
+    suggestion: string
+    score_label: string
+    score_tone: 'ok' | 'warn' | 'danger'
+    source?: 'local' | 'llm'
+    llm_available?: boolean
+    llm_error?: boolean
+  } }>(`/api/opportunities/${id}/insight`)
+}
+
 export async function updateOpportunity(id: number, payload: Record<string, unknown>) {
   return api<{ data: any }>(`/api/opportunities/${id}`, {
     method: 'PATCH',
