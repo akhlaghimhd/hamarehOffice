@@ -20,6 +20,8 @@ const loading = ref(true)
 const saving = ref(false)
 const detail = ref<any | null>(null)
 const formRef = ref()
+/** جلوگیری از نمایش خطای ولیدیشن بلافاصله بعد از ریست موفق */
+const suppressValidate = ref(false)
 
 const activityTypes = [
   { title: 'تماس تلفنی', value: 'call' },
@@ -62,6 +64,7 @@ const fileInput = ref<HTMLInputElement | null>(null)
 const previewOpen = ref(false)
 const previewItem = ref<LocalAttachment | null>(null)
 
+const MAX_FILES = 5
 const MAX_AUDIO_SEC = 180
 const isRecording = ref(false)
 const recordSeconds = ref(0)
@@ -90,10 +93,18 @@ const stepActivities = computed(() => {
   const d = detail.value
   if (!d?.activities?.length)
     return [] as any[]
+
   const stepId = currentStep.value?.id
-  if (!stepId)
-    return d.activities
-  return d.activities.filter((a: any) => a.step_id === stepId || !a.step_id)
+  let list = stepId
+    ? d.activities.filter((a: any) => a.step_id === stepId || !a.step_id)
+    : [...d.activities]
+
+  // جدیدترین بالاتر (تاریخ ثبت / happened_at نزولی)
+  return [...list].sort((a: any, b: any) => {
+    const ta = new Date(a.happened_at || a.created_at || 0).getTime()
+    const tb = new Date(b.happened_at || b.created_at || 0).getTime()
+    return tb - ta
+  })
 })
 
 function attachmentsOf(a: any): any[] {
@@ -138,18 +149,31 @@ function detectKind(file: File): LocalAttachment['kind'] {
   return 'other'
 }
 
+function clearAttachments() {
+  for (const a of attachments.value)
+    URL.revokeObjectURL(a.url)
+  attachments.value = []
+}
+
 function addFiles(files: File[]) {
+  if (!files.length)
+    return
+
   const next = [...attachments.value]
+  let skipped = 0
+
   for (const file of files) {
+    if (next.length >= MAX_FILES) {
+      skipped += 1
+      continue
+    }
+    // جلوگیری از تکرار دقیق همان نام+سایز
+    const dup = next.some(a => a.name === file.name && a.file.size === file.size)
+    if (dup) {
+      skipped += 1
+      continue
+    }
     const kind = detectKind(file)
-    if (kind === 'image' && next.some(a => a.kind === 'image'))
-      continue
-    if (kind === 'pdf' && next.some(a => a.kind === 'pdf'))
-      continue
-    if (kind === 'audio' && next.some(a => a.kind === 'audio'))
-      continue
-    if (next.length >= 3)
-      break
     next.push({
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       file,
@@ -158,12 +182,17 @@ function addFiles(files: File[]) {
       name: file.name,
     })
   }
+
   attachments.value = next
+  if (skipped)
+    notifyError(`حداکثر ${toFaDigits(MAX_FILES)} فایل. بعضی فایل‌ها اضافه نشدند.`)
 }
 
 function onFilesChange(e: Event) {
   const input = e.target as HTMLInputElement
-  addFiles(Array.from(input.files || []))
+  const list = Array.from(input.files || [])
+  addFiles(list)
+  // ریست برای انتخاب مجدد همان فایل‌ها
   input.value = ''
 }
 
@@ -191,8 +220,8 @@ async function toggleRecord() {
     stopRecording(true)
     return
   }
-  if (attachments.value.some(a => a.kind === 'audio')) {
-    notifyError('یک فایل صوتی از قبل هست. حذف کنید و دوباره ضبط کنید.')
+  if (attachments.value.length >= MAX_FILES) {
+    notifyError(`حداکثر ${toFaDigits(MAX_FILES)} فایل.`)
     return
   }
   try {
@@ -264,7 +293,27 @@ function splitBody(body: string) {
   }
 }
 
+async function resetFormClean() {
+  suppressValidate.value = true
+  form.value = {
+    type: '',
+    happened_on: todayIso(),
+    body: '',
+    result: '',
+  }
+  clearAttachments()
+  await nextTick()
+  formRef.value?.resetValidation?.()
+  // کمی تأخیر تا Vuetify فیلدها را به‌روز کند
+  await nextTick()
+  formRef.value?.resetValidation?.()
+  suppressValidate.value = false
+}
+
 async function submit() {
+  if (saving.value || suppressValidate.value)
+    return
+
   const { valid } = await formRef.value?.validate?.() ?? { valid: true }
   if (!valid)
     return
@@ -283,15 +332,7 @@ async function submit() {
     })
     success('فعالیت ثبت شد')
     await load()
-    form.value = {
-      type: '',
-      happened_on: todayIso(),
-      body: '',
-      result: '',
-    }
-    for (const a of attachments.value)
-      URL.revokeObjectURL(a.url)
-    attachments.value = []
+    await resetFormClean()
   }
   catch (e: any) {
     notifyError(e?.message || 'ثبت فعالیت ناموفق بود')
@@ -305,8 +346,7 @@ onMounted(load)
 
 onBeforeUnmount(() => {
   stopRecording(false)
-  for (const a of attachments.value)
-    URL.revokeObjectURL(a.url)
+  clearAttachments()
 })
 </script>
 
@@ -354,21 +394,27 @@ onBeforeUnmount(() => {
     </div>
 
     <template v-else-if="detail">
-      <VRow dense>
+      <VRow
+        dense
+        class="equal-row align-stretch"
+      >
+        <!-- فرم -->
         <VCol
           cols="12"
           lg="8"
+          class="d-flex"
         >
-          <VCard class="pa-3 pa-md-4">
+          <VCard class="pa-3 pa-md-4 flex-grow-1 d-flex flex-column panel-card">
             <div class="text-subtitle-1 font-weight-medium mb-0">
               چه کاری انجام شد؟
             </div>
-            <p class="text-caption text-medium-emphasis mb-3">
+            <p class="text-caption text-medium-emphasis mb-2">
               فعالیت زیر گام جاری ذخیره می‌شود.
             </p>
 
             <VForm
               ref="formRef"
+              class="flex-grow-1 d-flex flex-column"
               @submit.prevent="submit"
             >
               <VRow dense>
@@ -382,7 +428,7 @@ onBeforeUnmount(() => {
                     label="نوع *"
                     density="compact"
                     hide-details="auto"
-                    :rules="[rules.required('نوع')]"
+                    :rules="suppressValidate ? [] : [rules.required('نوع')]"
                   />
                 </VCol>
                 <VCol
@@ -393,7 +439,7 @@ onBeforeUnmount(() => {
                     v-model="form.happened_on"
                     label="تاریخ *"
                     density="compact"
-                    :rules="[rules.required('تاریخ')]"
+                    :rules="suppressValidate ? [] : [rules.required('تاریخ')]"
                   />
                 </VCol>
                 <VCol cols="12">
@@ -404,7 +450,7 @@ onBeforeUnmount(() => {
                     rows="2"
                     density="compact"
                     hide-details="auto"
-                    :rules="[rules.required('خلاصه عملکرد')]"
+                    :rules="suppressValidate ? [] : [rules.required('خلاصه عملکرد')]"
                   />
                 </VCol>
                 <VCol cols="12">
@@ -421,7 +467,7 @@ onBeforeUnmount(() => {
 
               <VCard
                 variant="outlined"
-                class="mt-3 pa-3 attachment-box"
+                class="mt-2 pa-3 attachment-box"
               >
                 <div class="d-flex flex-wrap align-center justify-space-between gap-2 mb-2">
                   <div>
@@ -429,7 +475,7 @@ onBeforeUnmount(() => {
                       پیوست‌ها
                     </div>
                     <div class="text-caption text-medium-emphasis">
-                      ۱ تصویر · ۱ PDF · صوت تا ۳ دقیقه
+                      تا {{ toFaDigits(MAX_FILES) }} فایل (تصویر، PDF، صوت تا ۳ دقیقه)
                     </div>
                   </div>
                   <div class="d-flex flex-wrap gap-2">
@@ -481,6 +527,7 @@ onBeforeUnmount(() => {
                     <button
                       type="button"
                       class="attach-thumb__preview"
+                      :title="item.name"
                       @click="openPreview(item)"
                     >
                       <img
@@ -498,6 +545,9 @@ onBeforeUnmount(() => {
                         />
                       </div>
                     </button>
+                    <div class="attach-thumb__name text-truncate">
+                      {{ item.name }}
+                    </div>
                     <VBtn
                       icon
                       size="x-small"
@@ -520,7 +570,7 @@ onBeforeUnmount(() => {
                 </div>
               </VCard>
 
-              <div class="d-flex flex-wrap justify-end gap-2 mt-3">
+              <div class="d-flex flex-wrap justify-end gap-2 mt-auto pt-3">
                 <VBtn
                   variant="outlined"
                   color="secondary"
@@ -532,7 +582,9 @@ onBeforeUnmount(() => {
                 <VBtn
                   color="primary"
                   size="small"
+                  type="button"
                   :loading="saving"
+                  :disabled="saving"
                   @click="submit"
                 >
                   ثبت فعالیت
@@ -542,133 +594,130 @@ onBeforeUnmount(() => {
           </VCard>
         </VCol>
 
+        <!-- ستون کناری -->
         <VCol
           cols="12"
           lg="4"
+          class="d-flex"
         >
-          <VCard
-            class="pa-3 mb-3"
-            color="primary"
-            variant="tonal"
-          >
-            <div class="text-caption text-medium-emphasis mb-0">
-              فرصت
-            </div>
-            <div class="text-subtitle-1 font-weight-medium mb-2">
-              {{ detail.organization_name }}
-            </div>
-            <div class="d-flex flex-wrap gap-1 mb-3">
-              <VChip
-                size="x-small"
-                variant="flat"
-              >
-                {{ toFaDigits(detail.code) }}
-              </VChip>
-              <VChip
-                size="x-small"
-                variant="flat"
-              >
-                {{ statusLabel[detail.status] || detail.status }}
-              </VChip>
-              <VChip
-                v-if="detail.stage?.name"
-                size="x-small"
-                variant="flat"
-              >
-                {{ detail.stage.name }}
-              </VChip>
-            </div>
-
-            <div class="text-caption text-medium-emphasis mb-0">
-              گام جاری
-            </div>
-            <template v-if="currentStep">
-              <div class="text-body-2 font-weight-medium">
-                {{ currentStep.title }}
+          <div class="sidebar-stack flex-grow-1 d-flex flex-column gap-3">
+            <VCard class="pa-3 opp-info-card">
+              <div class="text-caption opp-label mb-0">
+                فرصت
               </div>
-              <div class="text-caption text-medium-emphasis">
-                مهلت: {{ formatJalaliFa(currentStep.due_on) || '—' }}
+              <div class="text-subtitle-1 font-weight-medium mb-2 opp-title">
+                {{ detail.organization_name }}
               </div>
-            </template>
-            <div
-              v-else
-              class="text-caption text-medium-emphasis"
-            >
-              گام بازی تعریف نشده
-            </div>
-          </VCard>
+              <div class="d-flex flex-wrap gap-1 mb-3">
+                <VChip
+                  size="x-small"
+                  color="primary"
+                  variant="tonal"
+                >
+                  {{ toFaDigits(detail.code) }}
+                </VChip>
+                <VChip
+                  size="x-small"
+                  color="success"
+                  variant="tonal"
+                >
+                  {{ statusLabel[detail.status] || detail.status }}
+                </VChip>
+                <VChip
+                  v-if="detail.stage?.name"
+                  size="x-small"
+                  color="secondary"
+                  variant="tonal"
+                >
+                  {{ detail.stage.name }}
+                </VChip>
+              </div>
 
-          <VCard class="pa-0 overflow-hidden">
-            <div class="px-3 pt-3 pb-1 d-flex align-center justify-space-between">
-              <span class="text-body-2 font-weight-medium">فعالیت‌های قبلی این گام</span>
-              <VChip
-                v-if="stepActivities.length"
-                size="x-small"
-                color="primary"
-                variant="tonal"
-              >
-                {{ toFaDigits(stepActivities.length) }}
-              </VChip>
-            </div>
-            <div class="text-caption text-medium-emphasis px-3 pb-2">
-              کلیک = جزئیات و پیوست‌ها
-            </div>
-            <VDivider />
-
-            <div
-              v-if="!stepActivities.length"
-              class="pa-3 text-caption text-medium-emphasis"
-            >
-              هنوز فعالیتی ثبت نشده.
-            </div>
-
-            <div
-              v-else
-              class="history-scroll"
-            >
-              <button
-                v-for="a in stepActivities"
-                :key="a.id"
-                type="button"
-                class="history-row"
-                @click="openHistory(a)"
-              >
-                <div class="d-flex align-start justify-space-between gap-2">
-                  <div class="min-w-0">
-                    <div class="text-body-2 font-weight-medium">
-                      {{ typeLabel[a.type] || a.subject || a.type }}
-                    </div>
-                    <div class="text-caption text-medium-emphasis text-truncate-2">
-                      {{ splitBody(a.body).summary || a.body }}
-                    </div>
-                    <div
-                      v-if="attachmentsOf(a).length"
-                      class="d-flex flex-wrap gap-1 mt-1"
-                    >
-                      <VChip
-                        v-for="(f, i) in attachmentsOf(a).slice(0, 3)"
-                        :key="i"
-                        size="x-small"
-                        variant="outlined"
-                        prepend-icon="ri-attachment-2"
-                      >
-                        {{ f.name || f.file_name || 'پیوست' }}
-                      </VChip>
-                    </div>
-                    <div
-                      v-else
-                      class="text-caption text-disabled mt-1"
-                    >
-                      بدون پیوست ذخیره‌شده
-                    </div>
-                  </div>
-                  <div class="text-caption text-medium-emphasis text-no-wrap">
-                    {{ formatJalaliFa(a.happened_at) }}
-                  </div>
+              <div class="text-caption opp-label mb-0">
+                گام جاری
+              </div>
+              <template v-if="currentStep">
+                <div class="text-body-2 font-weight-medium opp-title">
+                  {{ currentStep.title }}
                 </div>
-              </button>
-            </div>
-          </VCard>
+                <div class="text-caption text-medium-emphasis">
+                  مهلت: {{ formatJalaliFa(currentStep.due_on) || '—' }}
+                </div>
+              </template>
+              <div
+                v-else
+                class="text-caption text-medium-emphasis"
+              >
+                گام بازی تعریف نشده
+              </div>
+            </VCard>
+
+            <VCard class="pa-0 overflow-hidden flex-grow-1 d-flex flex-column history-card">
+              <div class="px-3 pt-3 pb-1 d-flex align-center justify-space-between">
+                <span class="text-body-2 font-weight-medium">فعالیت‌های قبلی این گام</span>
+                <VChip
+                  v-if="stepActivities.length"
+                  size="x-small"
+                  color="primary"
+                  variant="tonal"
+                >
+                  {{ toFaDigits(stepActivities.length) }}
+                </VChip>
+              </div>
+              <div class="text-caption text-medium-emphasis px-3 pb-2">
+                جدیدترین بالا · کلیک = جزئیات
+              </div>
+              <VDivider />
+
+              <div
+                v-if="!stepActivities.length"
+                class="pa-3 text-caption text-medium-emphasis"
+              >
+                هنوز فعالیتی ثبت نشده.
+              </div>
+
+              <div
+                v-else
+                class="history-scroll flex-grow-1"
+              >
+                <button
+                  v-for="a in stepActivities"
+                  :key="a.id"
+                  type="button"
+                  class="history-row"
+                  @click="openHistory(a)"
+                >
+                  <div class="d-flex align-start justify-space-between gap-2">
+                    <div class="min-w-0">
+                      <div class="text-body-2 font-weight-medium">
+                        {{ typeLabel[a.type] || a.subject || a.type }}
+                      </div>
+                      <div class="text-caption text-medium-emphasis text-truncate-2">
+                        {{ splitBody(a.body).summary || a.body }}
+                      </div>
+                      <div
+                        v-if="attachmentsOf(a).length"
+                        class="d-flex flex-wrap gap-1 mt-1"
+                      >
+                        <VChip
+                          v-for="(f, i) in attachmentsOf(a).slice(0, 3)"
+                          :key="i"
+                          size="x-small"
+                          variant="outlined"
+                          prepend-icon="ri-attachment-2"
+                        >
+                          {{ f.name || f.file_name || 'پیوست' }}
+                        </VChip>
+                      </div>
+                    </div>
+                    <div class="text-caption text-medium-emphasis text-no-wrap">
+                      {{ formatJalaliFa(a.happened_at) }}
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </VCard>
+          </div>
         </VCol>
       </VRow>
     </template>
@@ -747,8 +796,7 @@ onBeforeUnmount(() => {
             v-else
             class="text-body-2 text-medium-emphasis"
           >
-            پیوستی برای این فعالیت در سرور ذخیره نشده است.
-            <span class="d-block text-caption mt-1">(آپلود دائمی فایل هنوز فعال نیست؛ فعلاً فقط متن فعالیت ذخیره می‌شود.)</span>
+            پیوستی در سرور ذخیره نشده است.
           </div>
         </VCardText>
         <VCardActions class="pa-3 pt-0">
@@ -829,18 +877,48 @@ onBeforeUnmount(() => {
 .activity-page :deep(.v-btn),
 .activity-page :deep(.v-field),
 .activity-page :deep(.v-label),
-.activity-page :deep(.v-list-item-title),
 .activity-page :deep(.v-chip) {
   font-family: 'Vazirmatn', Vazirmatn, Tahoma, sans-serif !important;
 }
 
-.attachment-box {
-  border-style: dashed !important;
+.equal-row {
+  min-height: calc(100vh - 160px);
 }
 
-.history-scroll {
-  max-height: 280px;
-  overflow-y: auto;
+@media (min-width: 1280px) {
+  .panel-card,
+  .sidebar-stack {
+    min-height: calc(100vh - 160px);
+    max-height: calc(100vh - 160px);
+  }
+
+  .history-card {
+    min-height: 0;
+  }
+
+  .history-scroll {
+    overflow-y: auto;
+    min-height: 0;
+  }
+}
+
+/* کارت فرصت: پس‌زمینه روشن + متن خوانا */
+.opp-info-card {
+  background: rgb(var(--v-theme-surface)) !important;
+  border: 1px solid rgba(var(--v-theme-primary), 0.22);
+  box-shadow: none;
+}
+
+.opp-label {
+  color: rgba(var(--v-theme-on-surface), 0.6) !important;
+}
+
+.opp-title {
+  color: rgb(var(--v-theme-on-surface)) !important;
+}
+
+.attachment-box {
+  border-style: dashed !important;
 }
 
 .history-row {
@@ -869,13 +947,13 @@ onBeforeUnmount(() => {
 
 .attach-thumb {
   position: relative;
-  width: 64px;
+  width: 72px;
 }
 
 .attach-thumb__preview {
   display: block;
-  width: 64px;
-  height: 52px;
+  width: 72px;
+  height: 56px;
   border-radius: 8px;
   overflow: hidden;
   border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
@@ -896,6 +974,12 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   color: rgba(var(--v-theme-on-surface), var(--v-medium-emphasis-opacity));
+}
+
+.attach-thumb__name {
+  font-size: 0.65rem;
+  margin-block-start: 2px;
+  max-width: 72px;
 }
 
 .attach-thumb__remove {
