@@ -13,28 +13,45 @@ export type OpportunityInsight = {
 export function useOpportunityInsight(opportunityId: () => number) {
   const insight = ref<OpportunityInsight | null>(null)
   const loading = ref(false)
+  const error = ref<string | null>(null)
 
   async function loadInsight() {
     loading.value = true
+    error.value = null
     try {
-      // Local models can be slow; never hang the UI forever
+      // مدل لوکال گاهی تا یک دقیقه طول می‌کشد
       const res = await Promise.race([
         fetchOpportunityInsight(opportunityId()),
         new Promise<never>((_, reject) => {
-          window.setTimeout(() => reject(new Error('insight-timeout')), 25000)
+          window.setTimeout(() => reject(new Error('insight-timeout')), 90000)
         }),
       ])
-      insight.value = res.data
+
+      // پشتیبانی از { data: {...} } و خود آبجکت
+      const payload = (res as any)?.data ?? res
+      if (payload && typeof payload === 'object') {
+        insight.value = {
+          bullets: Array.isArray(payload.bullets) ? payload.bullets : [],
+          suggestion: String(payload.suggestion || ''),
+          score_label: String(payload.score_label || 'پایدار'),
+          score_tone: (payload.score_tone === 'danger' || payload.score_tone === 'warn')
+            ? payload.score_tone
+            : 'ok',
+          source: payload.source === 'llm' ? 'llm' : 'local',
+          llm_available: Boolean(payload.llm_available),
+          llm_error: Boolean(payload.llm_error),
+        }
+      }
     }
-    catch {
-      // Keep previous/local fallback in the page
-      if (!insight.value)
-        insight.value = null
+    catch (e: any) {
+      console.warn('[insight] load failed:', e?.message || e)
+      error.value = e?.message || 'insight-failed'
+      // null نکن اگر قبلاً داده داشتیم
     }
     finally {
       loading.value = false
     }
   }
 
-  return { insight, loading, loadInsight }
+  return { insight, loading, error, loadInsight }
 }
