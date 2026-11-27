@@ -122,18 +122,33 @@ async function load() {
   }
 }
 
+/** ریشه ورود از query.root یا from — بدون history.back تا حلقه بین فرزندها ساخته نشود */
+function navRoot(): 'list' | 'detail' {
+  const r = String(route.query.root || '')
+  if (r === 'detail') return 'detail'
+  if (r === 'list') return 'list'
+  const from = fromSource.value
+  if (from === 'detail') return 'detail'
+  if (from === 'list') return 'list'
+  // از steps آمده ولی root مشخص نیست → فهرست امن‌تر از گیر کردن در حلقه
+  return 'list'
+}
+
 function goBack() {
-  if (fromSource.value === 'list') { router.push('/opportunities'); return }
-  if (fromSource.value === 'steps') { router.push('/opportunities/' + opportunityId.value + '/steps?from=activity'); return }
-  if (fromSource.value === 'detail') { router.push('/opportunities/' + opportunityId.value); return }
-  if (typeof window !== 'undefined' && window.history.length > 1) { router.back(); return }
-  router.push('/opportunities/' + opportunityId.value)
+  // بازگشت فقط به ریشه والد (فهرست فرصت‌ها یا صفحه فرصت) — نه دوباره به مدیریت گام
+  if (navRoot() === 'detail') {
+    router.push('/opportunities/' + opportunityId.value)
+    return
+  }
+  router.push('/opportunities')
 }
 
 function goDashboard() { router.push('/dashboard') }
 function goList() { router.push('/opportunities') }
 function goOpportunity() { router.push('/opportunities/' + opportunityId.value) }
-function goStepManage() { router.push('/opportunities/' + opportunityId.value + '/steps?from=activity') }
+function goStepManage() {
+  router.push('/opportunities/' + opportunityId.value + '/steps?root=' + navRoot())
+}
 
 function detectKind(file: File): LocalAttachment['kind'] {
   if (file.type.startsWith('image/')) return 'image'
