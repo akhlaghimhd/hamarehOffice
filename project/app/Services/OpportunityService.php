@@ -82,24 +82,9 @@ class OpportunityService
                 'organization_name' => $data['organization_name'],
                 'product_name' => $productName,
                 'products' => $products,
-                'industry' => $data['industry'] ?? null,
-                'industry_note' => $data['industry_note'] ?? null,
                 'contact_name' => $data['contact_name'] ?? null,
-                'contact_role' => $data['contact_role'] ?? null,
-                'contact_mobile' => $data['contact_mobile'] ?? null,
-                'contact_phone' => $data['contact_phone'] ?? null,
-                'contact_email' => $data['contact_email'] ?? null,
-                'address' => $data['address'] ?? null,
-                'application_need' => $data['application_need'] ?? null,
-                'tirage' => $data['tirage'] ?? null,
-                'budget_band' => $data['budget_band'] ?? null,
-                'purchase_timing' => $data['purchase_timing'] ?? null,
-                'customer_value_focus' => $data['customer_value_focus'] ?? null,
-                'main_objection' => $data['main_objection'] ?? null,
                 'stage_id' => $stageId,
                 'status' => $data['status'] ?? 'active',
-                'lost_reason' => $data['lost_reason'] ?? null,
-                'result_note' => $data['result_note'] ?? null,
                 'owner_user_id' => $userId,
                 'assigned_to_user_id' => $data['assignee_user_id'] ?? $userId,
                 'next_step' => $data['next_step'],
@@ -181,7 +166,7 @@ class OpportunityService
     {
         $body = $data['body'] ?? '';
         if (! empty($data['result'])) {
-            $body = trim($body."\n\nنتیجه/واکنش: ".$data['result']);
+            $body = trim($body."\nنتیجه/واکنش: ".$data['result']);
         }
 
         $stepId = $data['step_id'] ?? $opp->currentStep?->id;
@@ -192,7 +177,7 @@ class OpportunityService
             'step_id' => $stepId,
             'user_id' => $userId,
             'type' => $data['type'] ?? 'note',
-            'subject' => $data['subject'] ?? 'یادداشت',
+            'subject' => $data['subject'] ?? null,
             'body' => $body,
             'happened_at' => $data['happened_at'] ?? now(),
         ]);
@@ -207,6 +192,10 @@ class OpportunityService
     {
         return DB::transaction(function () use ($opp, $fromUserId, $data) {
             $toUserId = (int) $data['to_user_id'];
+            $stepTitle = trim((string) ($data['step_title'] ?? ''));
+            if ($stepTitle === '') {
+                $stepTitle = 'ماموریت ارجاع‌شده';
+            }
 
             OpportunityReferral::query()->create([
                 'company_id' => $opp->company_id,
@@ -214,40 +203,48 @@ class OpportunityService
                 'from_user_id' => $fromUserId,
                 'to_user_id' => $toUserId,
                 'action' => $data['action'] ?? 'assign',
-                'step_title' => $data['step_title'] ?? $opp->next_step,
-                'step_due_on' => $data['step_due_on'] ?? $opp->next_step_due_on,
+                'step_title' => $stepTitle,
+                'step_due_on' => $data['step_due_on'] ?? null,
                 'priority' => $data['priority'] ?? 'normal',
                 'note' => $data['note'] ?? null,
                 'created_at' => now(),
             ]);
 
-            $opp->assigned_to_user_id = $toUserId;
-            $opp->last_interaction_at = now();
-            $opp->save();
-
-            $step = OpportunityStep::query()
+            OpportunityStep::query()
                 ->where('opportunity_id', $opp->id)
                 ->where('is_current', true)
-                ->where('status', 'open')
-                ->first();
+                ->update(['is_current' => false]);
 
-            if ($step) {
-                $step->assignee_user_id = $toUserId;
-                $step->save();
-            }
+            $max = (int) $opp->steps()->max('sort_order');
+            $step = OpportunityStep::query()->create([
+                'company_id' => $opp->company_id,
+                'opportunity_id' => $opp->id,
+                'title' => $stepTitle,
+                'due_on' => $data['step_due_on'] ?? null,
+                'assignee_user_id' => $toUserId,
+                'status' => 'open',
+                'is_current' => true,
+                'sort_order' => $max + 1,
+            ]);
+
+            $opp->assigned_to_user_id = $toUserId;
+            $opp->next_step = $stepTitle;
+            $opp->next_step_due_on = $data['step_due_on'] ?? null;
+            $opp->last_interaction_at = now();
+            $opp->save();
 
             OpportunityActivity::query()->create([
                 'company_id' => $opp->company_id,
                 'opportunity_id' => $opp->id,
-                'step_id' => $step?->id,
+                'step_id' => $step->id,
                 'user_id' => $fromUserId,
                 'type' => 'assign',
                 'subject' => 'ارجاع فرصت',
-                'body' => $data['note'] ?? 'ارجاع به کاربر '.$toUserId,
+                'body' => trim(($data['note'] ?? '')."\nماموریت: ".$stepTitle),
                 'happened_at' => now(),
             ]);
 
-            return $opp->load(['stage', 'owner', 'assignee', 'currentStep']);
+            return $opp->load(['stage', 'owner', 'assignee', 'currentStep', 'steps']);
         });
     }
 
@@ -285,6 +282,10 @@ class OpportunityService
             } else {
                 $opp->next_step = null;
                 $opp->next_step_due_on = null;
+            }
+
+            if (! empty($data['return_to_owner']) && $opp->owner_user_id) {
+                $opp->assigned_to_user_id = $opp->owner_user_id;
             }
 
             $opp->last_interaction_at = now();
