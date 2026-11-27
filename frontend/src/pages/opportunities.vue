@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
-import ActivityFormDialog from '@/components/forms/ActivityFormDialog.vue'
 import FormDrawer from '@/components/forms/FormDrawer.vue'
 import JalaliDateField from '@/components/forms/JalaliDateField.vue'
 import PhoneField from '@/components/forms/PhoneField.vue'
@@ -9,7 +8,6 @@ import {
   assignOpportunity,
   closeOpportunityStep,
   createOpportunity,
-  createOpportunityActivity,
   fetchCompanyUsers,
   fetchOpportunities,
   fetchOpportunityStages,
@@ -38,7 +36,6 @@ const suppressDirty = ref(false)
 const activeItem = ref<any | null>(null)
 
 const closeOpen = ref(false)
-const activityOpen = ref(false)
 const assignOpen = ref(false)
 const editOpen = ref(false)
 
@@ -190,8 +187,7 @@ function openClose(item: any) {
 }
 
 function openActivity(item: any) {
-  activeItem.value = item
-  activityOpen.value = true
+  router.push('/opportunities/' + item.id + '/activities/new')
 }
 
 async function openAssign(item: any) {
@@ -342,38 +338,6 @@ async function submitClose() {
   }
   catch (e: any) {
     notifyError(e?.message || 'بستن گام ناموفق بود')
-  }
-  finally {
-    actionSaving.value = false
-  }
-}
-
-async function submitActivity(payload: {
-  type: string
-  subject: string
-  body: string
-  result?: string | null
-  happened_at?: string | null
-  step_id?: number | null
-}) {
-  if (!activeItem.value)
-    return
-
-  actionSaving.value = true
-  try {
-    await createOpportunityActivity(activeItem.value.id, {
-      type: payload.type,
-      subject: payload.subject,
-      body: payload.body,
-      result: payload.result || null,
-      happened_at: payload.happened_at || null,
-      step_id: payload.step_id ?? null,
-    })
-    activityOpen.value = false
-    success('فعالیت ثبت شد')
-  }
-  catch (e: any) {
-    notifyError(e?.message || 'ثبت فعالیت ناموفق بود')
   }
   finally {
     actionSaving.value = false
@@ -541,13 +505,6 @@ onMounted(load)
         <VBtn color="primary" :loading="actionSaving" @click="submitClose">بستن گام</VBtn>
       </template>
     </FormDrawer>
-
-    <ActivityFormDialog
-      v-model="activityOpen"
-      :opportunity="activeItem"
-      :loading="actionSaving"
-      @submit="submitActivity"
-    />
 
     <FormDrawer v-model="assignOpen" title="ارجاع فرصت" :subtitle="activeItem?.organization_name || ''" :width="440">
       <VForm ref="assignFormRef" @submit.prevent="submitAssign">
