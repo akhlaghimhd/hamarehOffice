@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Opportunity;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -11,7 +12,17 @@ class OpportunityInsightService
 {
     public function forOpportunity(Opportunity $opp): array
     {
-        $local = $this->localInsight($opp);
+        try {
+            $local = $this->localInsight($opp);
+        } catch (Throwable $e) {
+            Log::warning('localInsight failed: '.$e->getMessage());
+            $local = [
+                'bullets' => ['وضعیت فرصت قابل خواندن است؛ جزئیات خلاصه موقتاً ساده شده.'],
+                'suggestion' => 'یک فعالیت کوتاه ثبت کنید و نتیجه را بنویسید.',
+                'score_label' => 'پایدار',
+                'score_tone' => 'ok',
+            ];
+        }
 
         if (! $this->llmEnabled()) {
             return array_merge($local, [
@@ -35,7 +46,6 @@ class OpportunityInsightService
             ]);
         }
 
-        // Only when LLM is unreachable / empty
         return array_merge($local, [
             'source' => 'local',
             'llm_available' => true,
@@ -73,6 +83,22 @@ class OpportunityInsightService
         return filter_var($flag, FILTER_VALIDATE_BOOLEAN);
     }
 
+    private function asDay(mixed $value): ?Carbon
+    {
+        if ($value instanceof Carbon) {
+            return $value->copy()->startOfDay();
+        }
+        if (is_string($value) && trim($value) !== '') {
+            try {
+                return Carbon::parse($value)->startOfDay();
+            } catch (Throwable) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
     private function localInsight(Opportunity $opp): array
     {
         $steps = $opp->steps ?? collect();
@@ -83,11 +109,12 @@ class OpportunityInsightService
 
         $today = now()->startOfDay();
         $overdue = $open->filter(function ($s) use ($today) {
-            if (! $s->due_on) {
+            $due = $this->asDay($s->due_on ?? null);
+            if (! $due) {
                 return false;
             }
 
-            return $s->due_on->copy()->startOfDay()->lt($today);
+            return $due->lt($today);
         });
 
         $statusMap = [
@@ -116,26 +143,31 @@ class OpportunityInsightService
         $current = $steps->first(fn ($s) => $s->is_current && $s->status === 'open')
             ?? $steps->first(fn ($s) => $s->status === 'open');
 
+        $scoreTone = 'ok';
+        $scoreLabel = 'پایدار';
+
         if ($overdue->isNotEmpty()) {
             $bullets[] = '⚠ '.$overdue->count().' گام از مهلت گذشته — اولویت فوری بستن یا تمدید.';
             $scoreTone = 'danger';
             $scoreLabel = 'نیازمند توجه';
-        } elseif ($current?->due_on) {
-            $due = $current->due_on->copy()->startOfDay();
-            $days = $today->diffInDays($due, false);
-            if ($days <= 2) {
-                $bullets[] = 'مهلت گام جاری نزدیک است؛ امروز پیگیری فعال توصیه می‌شود.';
-                $scoreTone = 'warn';
-                $scoreLabel = 'حساس';
+        } elseif ($current) {
+            $due = $this->asDay($current->due_on ?? null);
+            if ($due) {
+                // Carbon 3: signed day difference without deprecated 2nd arg
+                $days = (int) $today->diffInDays($due);
+                if ($due->lt($today)) {
+                    $days = -$days;
+                }
+                if ($days <= 2) {
+                    $bullets[] = 'مهلت گام جاری نزدیک است؛ امروز پیگیری فعال توصیه می‌شود.';
+                    $scoreTone = 'warn';
+                    $scoreLabel = 'حساس';
+                } else {
+                    $bullets[] = 'گام جاری «'.$current->title.'» در وضعیت قابل مدیریت است.';
+                }
             } else {
                 $bullets[] = 'گام جاری «'.$current->title.'» در وضعیت قابل مدیریت است.';
-                $scoreTone = 'ok';
-                $scoreLabel = 'پایدار';
             }
-        } elseif ($current) {
-            $bullets[] = 'گام جاری «'.$current->title.'» در وضعیت قابل مدیریت است.';
-            $scoreTone = 'ok';
-            $scoreLabel = 'پایدار';
         } else {
             $bullets[] = 'گام بازی تعریف نشده است.';
             $scoreTone = 'warn';
@@ -180,19 +212,27 @@ class OpportunityInsightService
             'steps' => ($opp->steps ?? collect())->map(fn ($s) => [
                 'title' => $s->title,
                 'status' => $s->status,
-                'due_on' => $s->due_on?->format('Y-m-d'),
+                'due_on' => $this->asDay($s->due_on ?? null)?->format('Y-m-d'),
                 'result' => $s->result,
                 'is_current' => (bool) $s->is_current,
             ])->values()->all(),
-            'activities' => ($opp->activities ?? collect())->sortByDesc('id')->take(8)->values()->map(fn ($a) => [
-                'type' => $a->type,
-                'subject' => $a->subject,
-                'body' => mb_substr((string) $a->body, 0, 180),
-                'happened_at' => $a->happened_at?->format('Y-m-d'),
-            ])->all(),
+            'activities' => ($opp->activities ?? collect())->sortByDesc('id')->take(8)->values()->map(function ($a) {
+                $happened = null;
+                try {
+                    $happened = $a->happened_at?->format('Y-m-d');
+                } catch (Throwable) {
+                    $happened = is_string($a->happened_at ?? null) ? $a->happened_at : null;
+                }
+
+                return [
+                    'type' => $a->type,
+                    'subject' => $a->subject,
+                    'body' => mb_substr((string) $a->body, 0, 180),
+                    'happened_at' => $happened,
+                ];
+            })->all(),
         ];
 
-        // فارسی ساده برای کاربر فروش
         $system = "تو یک همکار باتجربه فروش هستی و برای همکارت حرف می‌زنی.\n"
             ."فقط فارسی روزمره بنویس؛ مثل پیامک به همکار.\n"
             ."هیچ واژه انگلیسی ننویس (نه Opportunity نه Stage نه Proposal نه Message نه Call).\n"
@@ -212,8 +252,6 @@ class OpportunityInsightService
         $base = rtrim((string) config('services.openai.base_url'), '/');
         $model = (string) config('services.openai.model');
         $key = (string) config('services.openai.key');
-        // Hard cap: long waits make Apache drop the response without CORS headers
-        // → browser reports misleading "Failed to fetch / CORS".
         $timeout = min(20, max(5, (int) config('services.openai.timeout', 20)));
         $url = $base.'/chat/completions';
 
@@ -226,7 +264,6 @@ class OpportunityInsightService
             ],
         ];
 
-        // برای Ollama از response_format استفاده نکن
         if ($this->usesJsonMode()) {
             $payload['response_format'] = ['type' => 'json_object'];
         }
@@ -268,7 +305,6 @@ class OpportunityInsightService
             return null;
         }
 
-        // 1) JSON
         $decoded = $this->parseJsonContent($content);
         if (is_array($decoded)) {
             $structured = $this->fromStructured($decoded, $local);
@@ -277,7 +313,6 @@ class OpportunityInsightService
             }
         }
 
-        // 2) متن ساده مدل — اولویت با مدل، ظاهر تمیز
         $fromPlain = $this->fromPlainText($content, $local);
         if ($fromPlain) {
             Log::info('LLM insight used plain-text parser');
@@ -337,7 +372,6 @@ class OpportunityInsightService
                 continue;
             }
 
-            // رد کلیدهای خام انگلیسی
             if (preg_match('/^(Tone|score_tone|score_label|bullets)\s*[:=]/i', $line)) {
                 if (preg_match('/warn/i', $line)) {
                     $scoreLabel = $scoreLabel ?: 'حساس';
@@ -359,7 +393,6 @@ class OpportunityInsightService
                 continue;
             }
 
-            // نکات شماره‌دار / خط تیره
             $line = preg_replace('/^(نکته\s*\d+\s*[:：\-]|\d+[\.\)\-]\s*|[-•]\s*)/u', '', $line) ?? $line;
             $line = $this->cleanLine($line);
             if ($line && mb_strlen($line) >= 8) {
@@ -367,11 +400,9 @@ class OpportunityInsightService
             }
         }
 
-        // اگر مدل یک پاراگراف داد
         if ($bullets === [] && $suggestion === null) {
             $one = $this->cleanLine(preg_replace('/\s+/u', ' ', $raw));
             if ($one && mb_strlen($one) >= 12) {
-                // به جملات کوتاه بشکن
                 $parts = preg_split('/(?<=[.!?؟۔])\s+/u', $one) ?: [$one];
                 foreach ($parts as $p) {
                     $p = $this->cleanLine($p);
@@ -396,7 +427,6 @@ class OpportunityInsightService
             return null;
         }
 
-        // اگر فقط پیشنهاد داشت، دو نکته زمینه‌ای محلی برای خوانایی
         if ($bullets === []) {
             $bullets = array_slice($local['bullets'] ?? [], 0, 2);
         }
