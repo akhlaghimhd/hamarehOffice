@@ -120,26 +120,20 @@ class OpportunityController extends Controller
                 ->where('company_id', $companyId)
                 ->findOrFail($id);
 
-            $data = $this->insightService->forOpportunity($opp);
-
-            return response()->json(['data' => $data]);
+            return response()->json(['data' => $this->insightService->forOpportunity($opp)]);
         } catch (Throwable $e) {
             Log::error('Opportunity insight endpoint failed: '.$e->getMessage(), [
                 'opportunity_id' => $id,
                 'exception' => $e::class,
-                'file' => $e->getFile().':'.$e->getLine(),
             ]);
 
-            // هرگز 500 به فرانت نده — تحلیل حداقلی تا UI نشکند
             return response()->json([
                 'data' => [
-                    'bullets' => ['خلاصه فرصت موقتاً در دسترس نیست. صفحه را چند ثانیه بعد تازه کنید.'],
+                    'bullets' => ['خلاصه فرصت موقتاً در دسترس نیست.'],
                     'suggestion' => 'یک فعالیت کوتاه ثبت کنید و نتیجه را بنویسید.',
                     'score_label' => 'پایدار',
                     'score_tone' => 'ok',
                     'source' => 'local',
-                    'llm_available' => false,
-                    'llm_error' => true,
                 ],
             ]);
         }
