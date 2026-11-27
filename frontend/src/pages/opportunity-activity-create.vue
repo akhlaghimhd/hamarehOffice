@@ -15,12 +15,12 @@ const router = useRouter()
 const { success, error: notifyError } = useNotify()
 
 const opportunityId = computed(() => Number(route.params.id))
+const fromSource = computed(() => String(route.query.from || ''))
 
 const loading = ref(true)
 const saving = ref(false)
 const detail = ref<any | null>(null)
 const formRef = ref()
-/** جلوگیری از نمایش خطای ولیدیشن بلافاصله بعد از ریست موفق */
 const suppressValidate = ref(false)
 
 const activityTypes = [
@@ -89,21 +89,23 @@ const currentStep = computed(() => {
     : null
 })
 
+/** مرتب‌سازی بر اساس زمان ثبت در سیستم (id / created_at) نه تاریخ انتخابی کاربر */
 const stepActivities = computed(() => {
   const d = detail.value
   if (!d?.activities?.length)
     return [] as any[]
 
   const stepId = currentStep.value?.id
-  let list = stepId
+  const list = stepId
     ? d.activities.filter((a: any) => a.step_id === stepId || !a.step_id)
     : [...d.activities]
 
-  // جدیدترین بالاتر (تاریخ ثبت / happened_at نزولی)
   return [...list].sort((a: any, b: any) => {
-    const ta = new Date(a.happened_at || a.created_at || 0).getTime()
-    const tb = new Date(b.happened_at || b.created_at || 0).getTime()
-    return tb - ta
+    const ca = a.created_at ? new Date(a.created_at).getTime() : 0
+    const cb = b.created_at ? new Date(b.created_at).getTime() : 0
+    if (ca !== cb)
+      return cb - ca
+    return Number(b.id || 0) - Number(a.id || 0)
   })
 })
 
@@ -132,11 +134,23 @@ async function load() {
 }
 
 function goBack() {
+  if (fromSource.value === 'list') {
+    router.push('/opportunities')
+    return
+  }
+  if (fromSource.value === 'detail') {
+    router.push('/opportunities/' + opportunityId.value)
+    return
+  }
+  if (typeof window !== 'undefined' && window.history.length > 1) {
+    router.back()
+    return
+  }
   router.push('/opportunities/' + opportunityId.value)
 }
 
-function goList() {
-  router.push('/opportunities')
+function goStepManage() {
+  router.push('/opportunities/' + opportunityId.value)
 }
 
 function detectKind(file: File): LocalAttachment['kind'] {
@@ -167,7 +181,6 @@ function addFiles(files: File[]) {
       skipped += 1
       continue
     }
-    // جلوگیری از تکرار دقیق همان نام+سایز
     const dup = next.some(a => a.name === file.name && a.file.size === file.size)
     if (dup) {
       skipped += 1
@@ -190,9 +203,7 @@ function addFiles(files: File[]) {
 
 function onFilesChange(e: Event) {
   const input = e.target as HTMLInputElement
-  const list = Array.from(input.files || [])
-  addFiles(list)
-  // ریست برای انتخاب مجدد همان فایل‌ها
+  addFiles(Array.from(input.files || []))
   input.value = ''
 }
 
@@ -304,7 +315,6 @@ async function resetFormClean() {
   clearAttachments()
   await nextTick()
   formRef.value?.resetValidation?.()
-  // کمی تأخیر تا Vuetify فیلدها را به‌روز کند
   await nextTick()
   formRef.value?.resetValidation?.()
   suppressValidate.value = false
@@ -352,38 +362,26 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="activity-page">
-    <div class="page-head d-flex flex-wrap align-center justify-space-between gap-2 mb-3">
-      <div class="d-flex flex-wrap align-center gap-2">
-        <VBtn
-          variant="text"
-          color="secondary"
-          size="small"
-          density="compact"
-          prepend-icon="ri-arrow-right-line"
-          @click="goBack"
-        >
-          بازگشت به فرصت
-        </VBtn>
-        <VBtn
-          variant="text"
-          color="secondary"
-          size="small"
-          density="compact"
-          @click="goList"
-        >
-          لیست فرصت‌ها
-        </VBtn>
-        <span class="text-h6 font-weight-medium ms-1">ثبت فعالیت</span>
-      </div>
-      <VChip
-        color="primary"
-        variant="tonal"
+    <div class="page-head d-flex flex-wrap align-center gap-2 mb-3">
+      <VBtn
+        icon
+        variant="text"
+        color="secondary"
         size="small"
         density="comfortable"
-        prepend-icon="ri-question-line"
+        :title="fromSource === 'list' ? 'بازگشت به لیست فرصت‌ها' : 'بازگشت'"
+        @click="goBack"
       >
-        راهنما
-      </VChip>
+        <VIcon icon="ri-arrow-right-s-line" size="26" />
+      </VBtn>
+      <h1 class="page-title text-h6 font-weight-medium mb-0">
+        <template v-if="detail?.organization_name">
+          ثبت فعالیت برای «{{ detail.organization_name }}»
+        </template>
+        <template v-else>
+          ثبت فعالیت
+        </template>
+      </h1>
     </div>
 
     <div
@@ -398,19 +396,15 @@ onBeforeUnmount(() => {
         dense
         class="equal-row align-stretch"
       >
-        <!-- فرم -->
         <VCol
           cols="12"
           lg="8"
           class="d-flex"
         >
           <VCard class="pa-3 pa-md-4 flex-grow-1 d-flex flex-column panel-card">
-            <div class="text-subtitle-1 font-weight-medium mb-0">
+            <div class="text-subtitle-1 font-weight-medium mb-3">
               چه کاری انجام شد؟
             </div>
-            <p class="text-caption text-medium-emphasis mb-2">
-              فعالیت زیر گام جاری ذخیره می‌شود.
-            </p>
 
             <VForm
               ref="formRef"
@@ -420,7 +414,7 @@ onBeforeUnmount(() => {
               <VRow dense>
                 <VCol
                   cols="12"
-                  sm="6"
+                  sm="6" gener
                 >
                   <VSelect
                     v-model="form.type"
@@ -470,13 +464,8 @@ onBeforeUnmount(() => {
                 class="mt-2 pa-3 attachment-box"
               >
                 <div class="d-flex flex-wrap align-center justify-space-between gap-2 mb-2">
-                  <div>
-                    <div class="text-body-2 font-weight-medium">
-                      پیوست‌ها
-                    </div>
-                    <div class="text-caption text-medium-emphasis">
-                      تا {{ toFaDigits(MAX_FILES) }} فایل (تصویر، PDF، صوت تا ۳ دقیقه)
-                    </div>
+                  <div class="text-body-2 font-weight-medium">
+                    پیوست‌ها
                   </div>
                   <div class="d-flex flex-wrap gap-2">
                     <VBtn
@@ -594,14 +583,19 @@ onBeforeUnmount(() => {
           </VCard>
         </VCol>
 
-        <!-- ستون کناری -->
         <VCol
           cols="12"
           lg="4"
           class="d-flex"
         >
           <div class="sidebar-stack flex-grow-1 d-flex flex-column gap-3">
-            <VCard class="pa-3 opp-info-card">
+            <VCard
+              class="pa-3 opp-info-card step-clickable"
+              role="button"
+              tabindex="0"
+              @click="goStepManage"
+              @keyup.enter="goStepManage"
+            >
               <div class="text-caption opp-label mb-0">
                 فرصت
               </div>
@@ -633,8 +627,15 @@ onBeforeUnmount(() => {
                 </VChip>
               </div>
 
-              <div class="text-caption opp-label mb-0">
-                گام جاری
+              <div class="d-flex align-center justify-space-between">
+                <div class="text-caption opp-label mb-0">
+                  گام جاری
+                </div>
+                <VIcon
+                  icon="ri-arrow-left-s-line"
+                  size="18"
+                  class="text-medium-emphasis"
+                />
               </div>
               <template v-if="currentStep">
                 <div class="text-body-2 font-weight-medium opp-title">
@@ -653,7 +654,7 @@ onBeforeUnmount(() => {
             </VCard>
 
             <VCard class="pa-0 overflow-hidden flex-grow-1 d-flex flex-column history-card">
-              <div class="px-3 pt-3 pb-1 d-flex align-center justify-space-between">
+              <div class="px-3 pt-3 pb-2 d-flex align-center justify-space-between">
                 <span class="text-body-2 font-weight-medium">فعالیت‌های قبلی این گام</span>
                 <VChip
                   v-if="stepActivities.length"
@@ -663,9 +664,6 @@ onBeforeUnmount(() => {
                 >
                   {{ toFaDigits(stepActivities.length) }}
                 </VChip>
-              </div>
-              <div class="text-caption text-medium-emphasis px-3 pb-2">
-                جدیدترین بالا · کلیک = جزئیات
               </div>
               <VDivider />
 
@@ -881,15 +879,19 @@ onBeforeUnmount(() => {
   font-family: 'Vazirmatn', Vazirmatn, Tahoma, sans-serif !important;
 }
 
+.page-title {
+  line-height: 1.4;
+}
+
 .equal-row {
-  min-height: calc(100vh - 160px);
+  min-height: calc(100vh - 140px);
 }
 
 @media (min-width: 1280px) {
   .panel-card,
   .sidebar-stack {
-    min-height: calc(100vh - 160px);
-    max-height: calc(100vh - 160px);
+    min-height: calc(100vh - 140px);
+    max-height: calc(100vh - 140px);
   }
 
   .history-card {
@@ -902,11 +904,20 @@ onBeforeUnmount(() => {
   }
 }
 
-/* کارت فرصت: پس‌زمینه روشن + متن خوانا */
 .opp-info-card {
   background: rgb(var(--v-theme-surface)) !important;
   border: 1px solid rgba(var(--v-theme-primary), 0.22);
   box-shadow: none;
+}
+
+.step-clickable {
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.step-clickable:hover {
+  border-color: rgb(var(--v-theme-primary));
+  box-shadow: 0 0 0 1px rgba(var(--v-theme-primary), 0.15);
 }
 
 .opp-label {
