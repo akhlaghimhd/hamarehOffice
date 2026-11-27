@@ -1,6 +1,6 @@
 <script lang="ts">
-import VerticalNav from '@layouts/components/VerticalNav.vue';
-import { useDisplay } from 'vuetify';
+import VerticalNav from '@layouts/components/VerticalNav.vue'
+import { useDisplay } from 'vuetify'
 
 export default defineComponent({
   setup(props, { slots }) {
@@ -10,6 +10,20 @@ export default defineComponent({
 
     const route = useRoute()
     const { mdAndDown } = useDisplay()
+
+    // اسکرول پنجره → کلاس Materio برای افکت جدا شدن هدر
+    const isWindowScrolled = ref(false)
+    const onWindowScroll = () => {
+      isWindowScrolled.value = window.scrollY > 0
+    }
+
+    onMounted(() => {
+      onWindowScroll()
+      window.addEventListener('scroll', onWindowScroll, { passive: true })
+    })
+    onBeforeUnmount(() => {
+      window.removeEventListener('scroll', onWindowScroll)
+    })
 
     // ℹ️ This is alternative to below two commented watcher
     // We want to show overlay if overlay nav is visible and want to hide overlay if overlay is hidden and vice versa.
@@ -31,7 +45,7 @@ export default defineComponent({
       // 👉 Navbar
       const navbar = h(
         'header',
-        { class: ['layout-navbar navbar-blur'] },
+        { class: ['layout-navbar', 'navbar-blur'] },
         [
           h(
             'div',
@@ -75,8 +89,9 @@ export default defineComponent({
         'div',
         {
           class: [
-            'layout-wrapper layout-nav-type-vertical layout-navbar-static layout-footer-static layout-content-width-fluid',
+            'layout-wrapper layout-nav-type-vertical layout-navbar-sticky layout-footer-static layout-content-width-fluid',
             mdAndDown.value && 'layout-overlay-nav',
+            isWindowScrolled.value && 'window-scrolled',
             route.meta.layoutWrapperClasses,
           ],
         },
