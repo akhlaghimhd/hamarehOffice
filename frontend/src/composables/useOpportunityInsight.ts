@@ -17,11 +17,19 @@ export function useOpportunityInsight(opportunityId: () => number) {
   async function loadInsight() {
     loading.value = true
     try {
-      const res = await fetchOpportunityInsight(opportunityId())
+      // Local models can be slow; never hang the UI forever
+      const res = await Promise.race([
+        fetchOpportunityInsight(opportunityId()),
+        new Promise<never>((_, reject) => {
+          window.setTimeout(() => reject(new Error('insight-timeout')), 25000)
+        }),
+      ])
       insight.value = res.data
     }
     catch {
-      insight.value = null
+      // Keep previous/local fallback in the page
+      if (!insight.value)
+        insight.value = null
     }
     finally {
       loading.value = false
