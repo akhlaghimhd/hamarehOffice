@@ -5,9 +5,7 @@ export type OpportunityInsight = {
   suggestion: string
   score_label: string
   score_tone: 'ok' | 'warn' | 'danger'
-  source?: 'local' | 'llm'
-  llm_available?: boolean
-  llm_error?: boolean
+  source?: 'local'
 }
 
 export function useOpportunityInsight(opportunityId: () => number) {
@@ -19,15 +17,13 @@ export function useOpportunityInsight(opportunityId: () => number) {
     loading.value = true
     error.value = null
     try {
-      // بک‌اند حداکثر ~20s برای مدل صبر می‌کند؛ کمی بیشتر برای شبکه
       const res = await Promise.race([
         fetchOpportunityInsight(opportunityId()),
         new Promise<never>((_, reject) => {
-          window.setTimeout(() => reject(new Error('insight-timeout')), 35000)
+          window.setTimeout(() => reject(new Error('insight-timeout')), 8000)
         }),
       ])
 
-      // پشتیبانی از { data: {...} } و خود آبجکت
       const payload = (res as any)?.data ?? res
       if (payload && typeof payload === 'object') {
         insight.value = {
@@ -37,16 +33,13 @@ export function useOpportunityInsight(opportunityId: () => number) {
           score_tone: (payload.score_tone === 'danger' || payload.score_tone === 'warn')
             ? payload.score_tone
             : 'ok',
-          source: payload.source === 'llm' ? 'llm' : 'local',
-          llm_available: Boolean(payload.llm_available),
-          llm_error: Boolean(payload.llm_error),
+          source: 'local',
         }
       }
     }
     catch (e: any) {
       console.warn('[insight] load failed:', e?.message || e)
       error.value = e?.message || 'insight-failed'
-      // null نکن اگر قبلاً داده داشتیم
     }
     finally {
       loading.value = false
