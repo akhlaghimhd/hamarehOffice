@@ -1,9 +1,10 @@
 /**
- * در dev با پروکسی Vite: خالی = same-origin → /api/... روی پورت Vite
- * در production یا اگر VITE_API_URL ست شده باشد: آدرس کامل بک‌اند
+ * DEV: همیشه same-origin ('' ) تا پروکسی Vite کار کند — VITE_API_URL عمداً نادیده گرفته می‌شود.
+ * PROD: VITE_API_URL یا پیش‌فرض 8088
  */
-const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ??
-  (import.meta.env.DEV ? '' : 'http://127.0.0.1:8088')
+const API_URL = import.meta.env.DEV
+  ? ''
+  : ((import.meta.env.VITE_API_URL as string | undefined) || 'http://127.0.0.1:8088')
 
 const TOKEN_KEY = 'hamareh_token'
 const USER_KEY = 'hamareh_user'
