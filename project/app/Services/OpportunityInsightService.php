@@ -29,7 +29,10 @@ class OpportunityInsightService
                 ]);
             }
         } catch (Throwable $e) {
-            Log::warning('Opportunity insight LLM failed: '.$e->getMessage());
+            Log::warning('Opportunity insight LLM failed: '.$e->getMessage(), [
+                'base_url' => config('services.openai.base_url'),
+                'model' => config('services.openai.model'),
+            ]);
         }
 
         // Always keep UI working even if LLM is down
@@ -55,7 +58,13 @@ class OpportunityInsightService
             $base = (string) config('services.openai.base_url');
 
             // Ollama / local OpenAI-compatible servers often reject response_format
-            if (str_contains($base, '11434') || str_contains($base, 'localhost') || str_contains($base, '127.0.0.1')) {
+            if (
+                str_contains($base, '11434')
+                || str_contains($base, 'localhost')
+                || str_contains($base, '127.0.0.1')
+                || str_contains($base, 'host.docker.internal')
+                || str_contains($base, '172.17.')
+            ) {
                 return false;
             }
 
@@ -192,14 +201,15 @@ class OpportunityInsightService
         $user = "بر اساس این داده فرصت، خلاصه وضعیت و پیشنهاد گام/فعالیت بعدی بده:\n"
             .json_encode($payloadContext, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
-        $base = (string) config('services.openai.base_url');
+        $base = rtrim((string) config('services.openai.base_url'), '/');
         $model = (string) config('services.openai.model');
         $key = (string) config('services.openai.key');
         $timeout = (int) config('services.openai.timeout', 45);
+        $url = $base.'/chat/completions';
 
         $payload = [
             'model' => $model,
-            'temperature' => 0.3,
+            'temperature' => 0.2,
             'messages' => [
                 ['role' => 'system', 'content' => $system],
                 ['role' => 'user', 'content' => $user],
@@ -210,10 +220,16 @@ class OpportunityInsightService
             $payload['response_format'] = ['type' => 'json_object'];
         }
 
+        Log::info('Opportunity insight LLM request', [
+            'url' => $url,
+            'model' => $model,
+            'json_mode' => isset($payload['response_format']),
+        ]);
+
         $response = Http::timeout($timeout)
             ->withToken($key)
             ->acceptJson()
-            ->post($base.'/chat/completions', $payload);
+            ->post($url, $payload);
 
         // Retry once without response_format if server rejected it (common on Ollama)
         if (! $response->successful() && isset($payload['response_format'])) {
@@ -221,31 +237,63 @@ class OpportunityInsightService
             $response = Http::timeout($timeout)
                 ->withToken($key)
                 ->acceptJson()
-                ->post($base.'/chat/completions', $payload);
+                ->post($url, $payload);
         }
 
         if (! $response->successful()) {
-            Log::warning('LLM insight HTTP '.$response->status().': '.$response->body());
+            Log::warning('LLM insight HTTP '.$response->status().': '.$response->body(), [
+                'url' => $url,
+            ]);
 
             return null;
         }
 
         $content = data_get($response->json(), 'choices.0.message.content');
         if (! is_string($content) || trim($content) === '') {
+            Log::warning('LLM insight empty content', ['url' => $url, 'body' => $response->body()]);
+
             return null;
         }
 
         $decoded = $this->parseJsonContent($content);
         if (! is_array($decoded)) {
+            // Small local models often return plain text — still useful
+            $plain = trim(preg_replace('/\s+/u', ' ', strip_tags($content)) ?? '');
+            if (mb_strlen($plain) > 12) {
+                Log::info('LLM insight used plain-text fallback');
+
+                return [
+                    'bullets' => array_values(array_filter([
+                        $local['bullets'][0] ?? null,
+                        $local['bullets'][1] ?? null,
+                        mb_substr($plain, 0, 220),
+                    ])),
+                    'suggestion' => mb_substr($plain, 0, 220),
+                    'score_label' => (string) ($local['score_label'] ?? 'پایدار'),
+                    'score_tone' => (string) ($local['score_tone'] ?? 'ok'),
+                ];
+            }
+
+            Log::warning('LLM insight JSON parse failed', ['content' => mb_substr($content, 0, 500)]);
+
             return null;
         }
 
         $bullets = $decoded['bullets'] ?? null;
+        if (is_string($bullets)) {
+            $bullets = array_values(array_filter(array_map('trim', preg_split('/[\n\r•\-]+/u', $bullets) ?: [])));
+        }
         if (! is_array($bullets) || $bullets === []) {
-            return null;
+            if (! empty($decoded['suggestion'])) {
+                $bullets = [(string) $decoded['suggestion']];
+            } else {
+                Log::warning('LLM insight missing bullets', ['decoded' => $decoded]);
+
+                return null;
+            }
         }
 
-        $tone = $decoded['score_tone'] ?? 'ok';
+        $tone = $decoded['score_tone'] ?? ($local['score_tone'] ?? 'ok');
         if (! in_array($tone, ['ok', 'warn', 'danger'], true)) {
             $tone = 'ok';
         }
