@@ -130,46 +130,76 @@ const isMyStep = computed(() => {
 const assigneeLabel = computed(() => isMyStep.value ? 'خودت' : (stepAssigneeName(viewingStep.value || currentStep.value) || 'نامشخص'))
 
 const smartInsight = computed(() => {
-  // اگر API مدل جواب داده (حتی با bullets خالی) همان را نشان بده
-  if (serverInsight.value && (serverInsight.value.source === 'llm' || serverInsight.value.bullets?.length)) {
-    const bullets = (serverInsight.value.bullets && serverInsight.value.bullets.length)
-      ? serverInsight.value.bullets
-      : [serverInsight.value.suggestion || 'تحلیل مدل آماده است']
-    return {
-      bullets,
-      suggestion: serverInsight.value.suggestion || '',
-      scoreLabel: serverInsight.value.score_label || 'پایدار',
-      scoreTone: serverInsight.value.score_tone || 'ok',
-      source: serverInsight.value.source || 'local',
-    }
-  }
   const d = item.value
   if (!d) return null
+
   const steps = d.steps || []
   const activities = d.activities || []
   const openSteps = steps.filter((s: any) => s.status === 'open' || s.is_current)
   const closed = steps.filter((s: any) => s.status === 'closed')
-  const overdue = openSteps.filter((s: any) => { const days = daysUntil(s.due_on); return days != null && days < 0 })
-  const recentActs = [...activities].sort((a: any, b: any) => Number(b.id || 0) - Number(a.id || 0)).slice(0, 3)
-  const bullets: string[] = []
-  bullets.push(`وضعیت فرصت: ${statusLabel[d.status] || d.status} · مرحله قیف: ${d.stage?.name || '—'}`)
-  bullets.push(`گام‌های باز: ${toFaDigits(openSteps.length)} · بسته‌شده: ${toFaDigits(closed.length)} · کل فعالیت: ${toFaDigits(activities.length)}`)
-  if (overdue.length) bullets.push(`⚠ ${toFaDigits(overdue.length)} گام از مهلت گذشته — اولویت فوری بستن یا تمدید.`)
-  else if (currentDeadline.value.tone === 'warn') bullets.push(`مهلت گام جاری ${currentDeadline.value.detail}؛ امروز پیگیری فعال توصیه می‌شود.`)
-  else if (currentStep.value) bullets.push(`گام جاری «${currentStep.value.title}» در وضعیت قابل مدیریت است.`)
-  if (recentActs.length) bullets.push(`آخرین فعالیت‌ها: ${recentActs.map((a: any) => typeLabel[a.type] || a.subject || a.type).join('، ')}`)
-  else bullets.push('هنوز فعالیت ثبت‌شده‌ای نیست — ثبت اولین تماس/جلسه مسیر را روشن می‌کند.')
-  let suggestion = 'یک فعالیت پیگیری کوتاه ثبت کنید و نتیجه را شفاف بنویسید.'
-  if (overdue.length) suggestion = 'ابتدا گام معوق را با نتیجه واقعی ببندید یا مهلت جدید تعریف کنید.'
-  else if (!activities.length && currentStep.value) suggestion = `برای «${currentStep.value.title}» یک تماس یا جلسه اولیه ثبت کنید.`
-  else if (closed.length && openSteps.length && currentDeadline.value.tone === 'ok') suggestion = 'گام فعلی پایدار است؛ می‌توانید گام بعدی را از الان طراحی کنید.'
-  else if (d.status === 'nurturing') suggestion = 'فرصت در پرورش است؛ یک محتوای ارزش‌افزا یا نمونه برای مخاطب پیشنهاد دهید.'
-  return {
-    bullets, suggestion,
-    scoreLabel: overdue.length ? 'نیازمند توجه' : currentDeadline.value.tone === 'warn' ? 'حساس' : 'پایدار',
-    scoreTone: overdue.length ? 'danger' : currentDeadline.value.tone === 'warn' ? 'warn' : 'ok',
-    source: 'local' as const,
+  const overdue = openSteps.filter((s: any) => {
+    const days = daysUntil(s.due_on)
+    return days != null && days < 0
+  })
+  const recentActs = [...activities]
+    .sort((a: any, b: any) => Number(b.id || 0) - Number(a.id || 0))
+    .slice(0, 2)
+
+  let alert: string | null = null
+  let scoreTone: 'ok' | 'warn' | 'danger' = 'ok'
+  let scoreLabel = 'پایدار'
+
+  if (overdue.length) {
+    alert = `${toFaDigits(overdue.length)} گام از مهلت گذشته — امروز ببندید یا مهلت را تمدید کنید.`
+    scoreTone = 'danger'
+    scoreLabel = 'نیازمند توجه'
   }
+  else if (currentDeadline.value.tone === 'warn' || currentDeadline.value.tone === 'danger') {
+    alert = `مهلت گام جاری: ${currentDeadline.value.detail}`
+    scoreTone = currentDeadline.value.tone === 'danger' ? 'danger' : 'warn'
+    scoreLabel = scoreTone === 'danger' ? 'نیازمند توجه' : 'حساس'
+  }
+  else if (!activities.length) {
+    alert = 'هنوز فعالیتی ثبت نشده؛ مسیر فرصت هنوز روشن نیست.'
+    scoreTone = 'warn'
+    scoreLabel = 'حساس'
+  }
+
+  let suggestion = 'یک پیگیری کوتاه ثبت کنید و نتیجه را بنویسید.'
+  if (overdue.length)
+    suggestion = 'گام معوق را با نتیجه واقعی ببندید یا مهلت جدید بگذارید.'
+  else if (!activities.length && currentStep.value)
+    suggestion = `برای «${currentStep.value.title}» یک تماس یا جلسه ثبت کنید.`
+  else if (currentDeadline.value.tone === 'warn')
+    suggestion = 'امروز با مخاطب تماس بگیرید و وضعیت را مشخص کنید.'
+  else if (closed.length && openSteps.length)
+    suggestion = 'گام فعلی قابل ادامه است؛ گام بعدی را طراحی کنید.'
+  else if (d.status === 'nurturing')
+    suggestion = 'یک نمونه یا محتوای مفید برای مشتری بفرستید.'
+
+  if (serverInsight.value?.suggestion)
+    suggestion = serverInsight.value.suggestion
+  if (serverInsight.value?.score_tone === 'danger' || serverInsight.value?.score_tone === 'warn') {
+    scoreTone = serverInsight.value.score_tone
+    scoreLabel = serverInsight.value.score_label || scoreLabel
+  }
+
+  const metrics = [
+    { label: 'وضعیت', value: statusLabel[d.status] || d.status },
+    { label: 'مرحله', value: d.stage?.name || '—' },
+    { label: 'گام باز', value: toFaDigits(openSteps.length) },
+    { label: 'فعالیت', value: toFaDigits(activities.length) },
+  ]
+
+  const focus = currentStep.value
+    ? `گام جاری: ${currentStep.value.title}`
+    : 'گام بازی تعریف نشده'
+
+  const recent = recentActs.length
+    ? recentActs.map((a: any) => typeLabel[a.type] || a.subject || a.type).join('، ')
+    : null
+
+  return { scoreLabel, scoreTone, alert, focus, metrics, recent, suggestion, source: 'local' as const }
 })
 
 async function load() {
@@ -312,22 +342,53 @@ onMounted(load)
         </VCol>
 
         <VCol cols="12" lg="4">
-          <VCard v-if="smartInsight" class="mb-3 insight-card"><VCardText class="pa-4">
-            <div class="d-flex align-center justify-space-between mb-2">
-              <div class="text-subtitle-2 font-weight-medium d-flex align-center gap-2"><VIcon icon="ri-sparkling-2-fill" color="primary" size="20" />وضعیت و برآیند</div>
-              <VChip size="x-small" variant="flat" :color="smartInsight.scoreTone === 'danger' ? 'error' : smartInsight.scoreTone === 'warn' ? 'warning' : 'success'">{{ smartInsight.scoreLabel }}</VChip>
-            </div>
-            <ul class="insight-list"><li v-for="(b, i) in smartInsight.bullets" :key="i">{{ b }}</li></ul>
-            <div class="insight-suggest mt-3">
-              <div class="text-caption text-medium-emphasis mb-1">پیشنهاد گام / فعالیت بعدی</div>
-              <div class="text-body-2 font-weight-medium">{{ smartInsight.suggestion }}</div>
-            </div>
-            <div class="text-caption text-disabled mt-2">
-              <template v-if="insightLoading">در حال تحلیل...</template>
-              <template v-else-if="smartInsight?.source === 'llm'">تحلیل با مدل زبانی</template>
-              <template v-else>تحلیل هوشمند محلی (بدون نیاز به کلید)</template>
-            </div>
-          </VCardText></VCard>
+                    <VCard v-if="smartInsight" class="mb-3 insight-card">
+            <VCardText class="pa-3">
+              <div class="insight-head d-flex align-center justify-space-between gap-2 mb-3">
+                <div class="text-body-2 d-flex align-center gap-1 text-medium-emphasis">
+                  <VIcon icon="ri-pulse-line" size="18" color="primary" />
+                  وضعیت فرصت
+                </div>
+                <VChip
+                  size="small"
+                  variant="flat"
+                  :color="smartInsight.scoreTone === 'danger' ? 'error' : smartInsight.scoreTone === 'warn' ? 'warning' : 'success'"
+                >
+                  {{ smartInsight.scoreLabel }}
+                </VChip>
+              </div>
+
+              <div
+                v-if="smartInsight.alert"
+                class="insight-alert mb-3"
+                :class="`insight-alert--${smartInsight.scoreTone}`"
+              >
+                <VIcon
+                  :icon="smartInsight.scoreTone === 'ok' ? 'ri-information-line' : 'ri-error-warning-line'"
+                  size="18"
+                  class="flex-shrink-0 mt-1"
+                />
+                <span>{{ smartInsight.alert }}</span>
+              </div>
+
+              <div class="insight-metrics mb-3">
+                <div v-for="(m, i) in smartInsight.metrics" :key="i" class="insight-metric">
+                  <span class="insight-metric__label">{{ m.label }}</span>
+                  <span class="insight-metric__value">{{ m.value }}</span>
+                </div>
+              </div>
+
+              <div class="insight-focus text-caption text-medium-emphasis mb-1">{{ smartInsight.focus }}</div>
+              <div v-if="smartInsight.recent" class="text-caption text-disabled mb-3">
+                اخیر: {{ smartInsight.recent }}
+              </div>
+
+              <div class="insight-action">
+                <div class="insight-action__label">کار پیشنهادی</div>
+                <div class="insight-action__text">{{ smartInsight.suggestion }}</div>
+              </div>
+            </VCardText>
+          </VCard>
 
           <VCard class="mb-3 side-card side-card--compact"><VCardText class="pa-3">
             <div class="text-caption text-medium-emphasis mb-1">فرصت</div>
@@ -417,9 +478,9 @@ onMounted(load)
 .deadline-dot--info { background: #1e88e5; }
 .deadline-dot--ok { background: #43a047; }
 .deadline-dot--neutral { background: #9e9e9e; }
-.insight-card { border: 1px solid rgba(var(--v-theme-primary),.22); background: radial-gradient(120px 80px at 100% 0%,rgba(var(--v-theme-primary),.12),transparent),rgb(var(--v-theme-surface)); border-radius: 14px!important; }
-.insight-list { margin: 0; padding-inline-start: 1.1rem; display: grid; gap: .4rem; font-size: .85rem; }
-.insight-suggest { padding: .75rem; border-radius: 12px; background: rgba(var(--v-theme-primary),.08); border: 1px dashed rgba(var(--v-theme-primary),.35); }
+
+
+
 .compact-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .45rem .75rem; font-size: .8rem; }
 .compact-grid .k { display: block; color: rgba(var(--v-theme-on-surface),var(--v-medium-emphasis-opacity)); font-size: .72rem; }
 .compact-grid .v { font-weight: 600; }
