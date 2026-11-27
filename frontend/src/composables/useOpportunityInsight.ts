@@ -19,11 +19,11 @@ export function useOpportunityInsight(opportunityId: () => number) {
     loading.value = true
     error.value = null
     try {
-      // مدل لوکال گاهی تا یک دقیقه طول می‌کشد
+      // بک‌اند حداکثر ~20s برای مدل صبر می‌کند؛ کمی بیشتر برای شبکه
       const res = await Promise.race([
         fetchOpportunityInsight(opportunityId()),
         new Promise<never>((_, reject) => {
-          window.setTimeout(() => reject(new Error('insight-timeout')), 90000)
+          window.setTimeout(() => reject(new Error('insight-timeout')), 35000)
         }),
       ])
 
