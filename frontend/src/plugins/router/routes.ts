@@ -8,6 +8,7 @@ export const routes = [
       { path: 'parties', component: () => import('@/pages/parties.vue') },
       { path: 'opportunities', component: () => import('@/pages/opportunities.vue') },
       { path: 'opportunities/create', component: () => import('@/pages/opportunity-create.vue') },
+      { path: 'opportunities/:id/activities/new', component: () => import('@/pages/opportunity-activity-create.vue') },
       { path: 'opportunities/:id', component: () => import('@/pages/opportunity-detail.vue') },
       { path: 'account-settings', component: () => import('@/pages/account-settings.vue') },
       { path: 'typography', component: () => import('@/pages/typography.vue') },
