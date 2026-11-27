@@ -4,7 +4,9 @@ import FormDrawer from '@/components/forms/FormDrawer.vue'
 import JalaliDateField from '@/components/forms/JalaliDateField.vue'
 import { useNotify } from '@/composables/useNotify'
 import {
+  assignOpportunity,
   closeOpportunityStep,
+  fetchCompanyUsers,
   fetchOpportunity,
   fetchOpportunityStages,
   getCompany,
@@ -24,6 +26,14 @@ const closeOpen = ref(false)
 const closing = ref(false)
 const formRef = ref()
 const dirty = ref(false)
+const assignOpen = ref(false)
+const actionSaving = ref(false)
+const assignFormRef = ref()
+const companyUsers = ref<{ title: string; value: number }[]>([])
+const assignForm = ref({
+  to_user_id: null as number | null,
+  note: '',
+})
 
 const closeForm = ref({
   result: '',
@@ -44,12 +54,9 @@ const statusLabel: Record<string, string> = {
 }
 
 const productList = computed(() => {
-  if (!item.value)
-    return [] as string[]
-  if (Array.isArray(item.value.products) && item.value.products.length)
-    return item.value.products
-  if (item.value.product_name)
-    return [item.value.product_name]
+  if (!item.value) return [] as string[]
+  if (Array.isArray(item.value.products) && item.value.products.length) return item.value.products
+  if (item.value.product_name) return [item.value.product_name]
   return []
 })
 
@@ -90,9 +97,7 @@ function openClose() {
 
 async function submitClose() {
   const { valid } = await formRef.value?.validate?.() ?? { valid: true }
-  if (!valid)
-    return
-
+  if (!valid) return
   closing.value = true
   try {
     const res = await closeOpportunityStep(id.value, {
@@ -115,110 +120,59 @@ async function submitClose() {
   }
 }
 
+async function openAssign() {
+  assignForm.value = {
+    to_user_id: item.value?.assignee?.id ?? null,
+    note: '',
+  }
+  if (!companyUsers.value.length) {
+    try {
+      const res = await fetchCompanyUsers()
+      companyUsers.value = (res.data || []).map((u: any) => ({ title: u.name, value: u.id }))
+    }
+    catch (e: any) {
+      notifyError(e?.message || 'خطا در دریافت کاربران')
+      return
+    }
+  }
+  assignOpen.value = true
+}
+async function submitAssign() {
+  const { valid } = await assignFormRef.value?.validate?.() ?? { valid: true }
+  if (!valid) return
+  actionSaving.value = true
+  try {
+    await assignOpportunity(id.value, {
+      to_user_id: assignForm.value.to_user_id,
+      note: assignForm.value.note || null,
+    })
+    assignOpen.value = false
+    success('ارجاع انجام شد')
+    await load()
+  }
+  catch (e: any) {
+    notifyError(e?.message || 'ارجاع ناموفق بود')
+  }
+  finally {
+    actionSaving.value = false
+  }
+}
+
 onMounted(load)
 </script>
 
 <template>
   <div v-if="item">
-    <div class="d-flex flex-wrap align-center justify-space-between gap-3 mb-6">
-      <div>
-        <VBtn
-          variant="text"
-          color="secondary"
-          size="small"
-          class="mb-2"
-          @click="router.push('/opportunities')"
-        >
-          بازگشت به فرصت‌ها
-        </VBtn>
-        <h4 class="text-h4 mb-1">
-          {{ item.organization_name }}
-        </h4>
-        <div class="d-flex flex-wrap gap-2">
-          <VChip size="small">
-            {{ toFaDigits(item.code) }}
-          </VChip>
-          <VChip
-            size="small"
-            color="primary"
-            variant="tonal"
-          >
-            {{ statusLabel[item.status] || item.status }}
-          </VChip>
-          <VChip
-            size="small"
-            variant="tonal"
-          >
-            {{ item.stage?.name }}
-          </VChip>
-          <VChip
-            v-for="p in productList"
-            :key="p"
-            size="small"
-            variant="outlined"
-            color="primary"
-          >
-            {{ p }}
-          </VChip>
-        </div>
-      </div>
+    <div class="d-flex flex-wrap align-center gap-2 mb-4">
+      <VBtn icon variant="text" @click="$router.push('/opportunities')">
+        <VIcon icon="ri-arrow-right-s-line" />
+      </VBtn>
+      <h1 class="text-h5 mb-0">{{ item.organization_name }}</h1>
     </div>
 
     <VRow>
-      <VCol cols="12" md="4">
-        <VCard class="mb-4" title="مخاطب">
-          <VCardText>
-            <div class="text-h6">
-              {{ item.contact_name || '—' }}
-            </div>
-            <div class="text-body-2 text-medium-emphasis">
-              {{ item.contact_role || '' }}
-            </div>
-            <div class="mt-2">
-              {{ toFaDigits(item.contact_mobile || item.contact_phone || '—') }}
-            </div>
-          </VCardText>
-        </VCard>
-
-        <VCard title="جزئیات فرصت">
-          <VCardText>
-            <div class="mb-3">
-              <div class="text-medium-emphasis mb-1">
-                محصول‌ها
-              </div>
-              <div class="d-flex flex-wrap gap-1">
-                <VChip
-                  v-for="p in productList"
-                  :key="p"
-                  size="small"
-                  variant="tonal"
-                >
-                  {{ p }}
-                </VChip>
-                <span v-if="!productList.length">—</span>
-              </div>
-            </div>
-            <div class="d-flex justify-space-between mb-2">
-              <span class="text-medium-emphasis">مرحله قیف</span><span>{{ item.stage?.name || '—' }}</span>
-            </div>
-            <div class="d-flex justify-space-between mb-2">
-              <span class="text-medium-emphasis">وضعیت</span><span>{{ statusLabel[item.status] || item.status }}</span>
-            </div>
-            <div class="d-flex justify-space-between mb-2">
-              <span class="text-medium-emphasis">مالک</span><span>{{ item.owner?.name || '—' }}</span>
-            </div>
-            <div class="d-flex justify-space-between">
-              <span class="text-medium-emphasis">ارجاع به</span><span>{{ item.assignee?.name || '—' }}</span>
-            </div>
-          </VCardText>
-        </VCard>
-      </VCol>
-
       <VCol cols="12" md="8">
         <VCard class="mb-4">
-          <VCardItem>
-            <VCardTitle>گام جاری</VCardTitle>
-          </VCardItem>
           <VCardText>
             <template v-if="item.current_step || item.next_step">
               <div class="text-h6 mb-2">
@@ -227,80 +181,36 @@ onMounted(load)
               <div class="text-body-2 text-medium-emphasis mb-4">
                 مهلت: {{ formatJalaliFa(item.current_step?.due_on || item.next_step_due_on) }}
               </div>
-              <VBtn
-                color="primary"
-                @click="openClose"
-              >
-                بستن گام
-              </VBtn>
+              <div class="d-flex flex-wrap gap-2">
+                <VBtn color="primary" @click="openClose">بستن گام</VBtn>
+                <VBtn color="secondary" variant="tonal" prepend-icon="ri-user-add-line" @click="openAssign">ارجاع</VBtn>
+                <VBtn color="primary" variant="tonal" :to="`/opportunities/${id}/steps`">مدیریت گام‌ها</VBtn>
+                <VBtn color="primary" variant="text" :to="`/opportunities/${id}/activities/new?from=detail`">ثبت فعالیت</VBtn>
+              </div>
             </template>
-            <div
-              v-else
-              class="text-medium-emphasis"
-            >
-              گام بازی تعریف نشده است.
-            </div>
+            <div v-else class="text-medium-emphasis">گام جاری تعریف نشده</div>
           </VCardText>
         </VCard>
 
-        <VCard title="گام‌های قبلی">
+        <VCard class="mb-4">
+          <VCardTitle>اطلاعات فرصت</VCardTitle>
           <VCardText>
-            <VTimeline density="compact" side="end">
-              <VTimelineItem
-                v-for="s in (item.steps || []).filter((x: any) => x.status === 'closed')"
-                :key="s.id"
-                size="small"
-                dot-color="primary"
-              >
-                <div class="font-weight-medium">
-                  {{ s.title }}
-                </div>
-                <div class="text-body-2">
-                  {{ s.result }}
-                </div>
-                <div
-                  v-if="s.due_on"
-                  class="text-caption text-medium-emphasis"
-                >
-                  {{ formatJalaliFa(s.due_on) }}
-                </div>
-              </VTimelineItem>
-            </VTimeline>
-            <div
-              v-if="!(item.steps || []).some((x: any) => x.status === 'closed')"
-              class="text-medium-emphasis"
-            >
-              هنوز گامی بسته نشده
+            <div class="mb-2"><span class="text-medium-emphasis">وضعیت:</span> {{ statusLabel[item.status] || item.status }}</div>
+            <div class="mb-2"><span class="text-medium-emphasis">مرحله:</span> {{ item.stage?.name || '—' }}</div>
+            <div class="mb-2"><span class="text-medium-emphasis">مسئول:</span> {{ item.assignee?.name || item.owner?.name || '—' }}</div>
+            <div class="mb-2"><span class="text-medium-emphasis">مخاطب:</span> {{ item.contact_name || '—' }}</div>
+            <div v-if="productList.length" class="mb-2">
+              <span class="text-medium-emphasis">محصول:</span> {{ productList.join('، ') }}
             </div>
           </VCardText>
         </VCard>
       </VCol>
     </VRow>
 
-    <FormDrawer
-      v-model="closeOpen"
-      title="بستن گام"
-      subtitle="نتیجه و گام بعدی را مشخص کنید"
-      :dirty="dirty"
-      :width="480"
-    >
-      <VForm
-        ref="formRef"
-        @submit.prevent="submitClose"
-      >
-        <VTextarea
-          v-model="closeForm.result"
-          label="نتیجه این گام"
-          rows="3"
-          class="mb-3"
-          :rules="[rules.required('نتیجه')]"
-        />
-        <VSelect
-          v-model="closeForm.stage_id"
-          :items="stages"
-          label="مرحله قیف"
-          class="mb-3"
-        />
+    <FormDrawer v-model="closeOpen" title="بستن گام" subtitle="نتیجه و گام بعدی را مشخص کنید" :dirty="dirty" :width="480">
+      <VForm ref="formRef" @submit.prevent="submitClose">
+        <VTextarea v-model="closeForm.result" label="نتیجه این گام" rows="3" class="mb-3" :rules="[rules.required]" />
+        <VSelect v-model="closeForm.stage_id" :items="stages" label="مرحله قیف" class="mb-3" />
         <VSelect
           v-model="closeForm.status"
           :items="[
@@ -313,36 +223,25 @@ onMounted(load)
           label="وضعیت فرصت"
           class="mb-3"
         />
-        <VTextField
-          v-model="closeForm.next_step_title"
-          label="گام بعدی (اختیاری)"
-          class="mb-3"
-        />
-        <JalaliDateField
-          v-model="closeForm.next_step_due_on"
-          label="مهلت گام بعدی"
-        />
+        <VTextField v-model="closeForm.next_step_title" label="گام بعدی (اختیاری)" class="mb-3" />
+        <JalaliDateField v-model="closeForm.next_step_due_on" label="مهلت گام بعدی" />
       </VForm>
-
       <template #actions>
-        <VBtn
-          variant="text"
-          color="secondary"
-          @click="closeOpen = false"
-        >
-          انصراف
-        </VBtn>
-        <VBtn
-          color="primary"
-          :loading="closing"
-          @click="submitClose"
-        >
-          بستن گام
-        </VBtn>
+        <VBtn variant="text" color="secondary" @click="closeOpen = false">انصراف</VBtn>
+        <VBtn color="primary" :loading="closing" @click="submitClose">بستن گام</VBtn>
+      </template>
+    </FormDrawer>
+
+    <FormDrawer v-model="assignOpen" title="ارجاع فرصت" :subtitle="item?.organization_name || ''" :width="420">
+      <VForm ref="assignFormRef" @submit.prevent="submitAssign">
+        <VSelect v-model="assignForm.to_user_id" :items="companyUsers" label="ارجاع به" class="mb-3" :rules="[rules.required]" />
+        <VTextarea v-model="assignForm.note" label="یادداشت" rows="3" />
+      </VForm>
+      <template #actions>
+        <VBtn variant="text" color="secondary" @click="assignOpen = false">انصراف</VBtn>
+        <VBtn color="primary" :loading="actionSaving" @click="submitAssign">ارجاع</VBtn>
       </template>
     </FormDrawer>
   </div>
-  <div v-else-if="loading">
-    در حال بارگذاری...
-  </div>
+  <div v-else-if="loading">در حال بارگذاری...</div>
 </template>
