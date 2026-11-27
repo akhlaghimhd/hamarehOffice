@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Opportunity;
 use App\Models\OpportunityStage;
 use App\Models\OpportunityStep;
+use App\Services\OpportunityInsightService;
 use App\Services\OpportunityService;
 use App\Support\CompanyContext;
 use Illuminate\Http\JsonResponse;
@@ -13,7 +14,10 @@ use Illuminate\Http\Request;
 
 class OpportunityController extends Controller
 {
-    public function __construct(private OpportunityService $service) {}
+    public function __construct(
+        private OpportunityService $service,
+        private OpportunityInsightService $insightService,
+    ) {}
 
     public function index(Request $request, CompanyContext $context): JsonResponse
     {
@@ -98,6 +102,22 @@ class OpportunityController extends Controller
             ->findOrFail($id);
 
         return response()->json(['data' => $this->detail($opp)]);
+    }
+
+    public function insight(int $id, CompanyContext $context): JsonResponse
+    {
+        $companyId = $context->check();
+
+        $opp = Opportunity::query()
+            ->with([
+                'stage:id,name,code',
+                'steps' => fn ($q) => $q->orderBy('sort_order'),
+                'activities' => fn ($q) => $q->orderByDesc('id')->limit(30),
+            ])
+            ->where('company_id', $companyId)
+            ->findOrFail($id);
+
+        return response()->json(['data' => $this->insightService->forOpportunity($opp)]);
     }
 
     public function update(Request $request, int $id, CompanyContext $context): JsonResponse
