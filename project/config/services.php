@@ -35,4 +35,19 @@ return [
         ],
     ],
 
+    /*
+    | OpenAI-compatible chat API (optional).
+    | Leave OPENAI_API_KEY empty to use local heuristic insights on host.
+    | For local Ollama example:
+    |   OPENAI_BASE_URL=http://127.0.0.1:11434/v1
+    |   OPENAI_API_KEY=ollama
+    |   OPENAI_MODEL=llama3.2
+    */
+    'openai' => [
+        'key' => env('OPENAI_API_KEY'),
+        'base_url' => rtrim(env('OPENAI_BASE_URL', 'https://api.openai.com/v1'), '/'),
+        'model' => env('OPENAI_MODEL', 'gpt-4o-mini'),
+        'timeout' => (int) env('OPENAI_TIMEOUT', 20),
+    ],
+
 ];

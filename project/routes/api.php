@@ -29,6 +29,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/opportunities/{id}/close-step', [OpportunityController::class, 'closeStep']);
         Route::post('/opportunities/{id}/activities', [OpportunityController::class, 'storeActivity']);
         Route::post('/opportunities/{id}/assign', [OpportunityController::class, 'assign']);
+        Route::get('/opportunities/{id}/insight', [OpportunityController::class, 'insight']);
         Route::get('/opportunity-stages', [OpportunityController::class, 'stages']);
     });
 });
