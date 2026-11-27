@@ -9,6 +9,7 @@ export const routes = [
       { path: 'opportunities', component: () => import('@/pages/opportunities.vue') },
       { path: 'opportunities/create', component: () => import('@/pages/opportunity-create.vue') },
       { path: 'opportunities/:id/activities/new', component: () => import('@/pages/opportunity-activity-create.vue') },
+      { path: 'opportunities/:id/steps', component: () => import('@/pages/opportunity-steps.vue') },
       { path: 'opportunities/:id', component: () => import('@/pages/opportunity-detail.vue') },
       { path: 'account-settings', component: () => import('@/pages/account-settings.vue') },
       { path: 'typography', component: () => import('@/pages/typography.vue') },
