@@ -157,9 +157,7 @@ export async function fetchOpportunityInsight(id: number) {
     suggestion: string
     score_label: string
     score_tone: 'ok' | 'warn' | 'danger'
-    source?: 'local' | 'llm'
-    llm_available?: boolean
-    llm_error?: boolean
+    source?: 'local'
   } }>(`/api/opportunities/${id}/insight`)
 }
 
