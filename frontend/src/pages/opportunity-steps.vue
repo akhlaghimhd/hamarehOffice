@@ -8,6 +8,7 @@ import {
   fetchOpportunity,
   fetchOpportunityStages,
   getCompany,
+  getUser,
 } from '@/utils/api'
 import { formatJalaliFa, toFaDigits } from '@/utils/fa'
 import { rules } from '@/utils/formRules'
@@ -17,6 +18,7 @@ const router = useRouter()
 const { success, error: notifyError } = useNotify()
 const id = computed(() => Number(route.params.id))
 const fromSource = computed(() => String(route.query.from || ''))
+const currentUser = computed(() => getUser<{ id?: number; name?: string }>())
 
 const item = ref<any | null>(null)
 const stages = ref<any[]>([])
@@ -25,6 +27,7 @@ const closeOpen = ref(false)
 const closing = ref(false)
 const formRef = ref()
 const dirty = ref(false)
+const selectedStepId = ref<number | null>(null)
 
 const closeForm = ref({
   result: '',
@@ -65,22 +68,38 @@ const currentStep = computed(() => {
   if (open)
     return open
   return d.next_step
-    ? { title: d.next_step, due_on: d.next_step_due_on, id: null }
+    ? { title: d.next_step, due_on: d.next_step_due_on, id: null, assignee: d.assignee }
     : null
 })
 
-const closedSteps = computed(() =>
-  (item.value?.steps || []).filter((s: any) => s.status === 'closed'),
-)
+const allSteps = computed(() => {
+  const steps = [...(item.value?.steps || [])]
+  return steps.sort((a: any, b: any) => {
+    const ao = a.status === 'open' || a.is_current ? 0 : 1
+    const bo = b.status === 'open' || b.is_current ? 0 : 1
+    if (ao !== bo)
+      return ao - bo
+    return Number(b.id || 0) - Number(a.id || 0)
+  })
+})
+
+const viewingStep = computed(() => {
+  if (selectedStepId.value != null) {
+    const found = allSteps.value.find((s: any) => s.id === selectedStepId.value)
+    if (found)
+      return found
+  }
+  return currentStep.value
+})
 
 const stepActivities = computed(() => {
   const d = item.value
   if (!d?.activities?.length)
     return [] as any[]
-  const stepId = currentStep.value?.id
+  const stepId = viewingStep.value?.id
   const list = stepId
-    ? d.activities.filter((a: any) => a.step_id === stepId || !a.step_id)
-    : [...d.activities]
+    ? d.activities.filter((a: any) => a.step_id === stepId)
+    : d.activities.filter((a: any) => !a.step_id)
   return [...list].sort((a: any, b: any) => {
     const ca = a.created_at ? new Date(a.created_at).getTime() : 0
     const cb = b.created_at ? new Date(b.created_at).getTime() : 0
@@ -100,28 +119,136 @@ const productList = computed(() => {
   return []
 })
 
-const referrals = computed(() => {
-  if (Array.isArray(item.value?.referrals))
-    return item.value.referrals
-  return [] as any[]
-})
-
-const knowledgeItems = computed(() => {
-  if (Array.isArray(item.value?.knowledge_guides))
-    return item.value.knowledge_guides
-  return [
-    { title: 'فصل ۴ – جایگاه‌یابی و معماری پیام', meta: 'رسمی · فصل' },
-    { title: 'فرآیند فروش و معیار عبور مراحل', meta: 'رسمی · کارت' },
-  ] as any[]
-})
-
 function activitiesOfStep(stepId: number | null | undefined) {
-  if (!item.value?.activities?.length)
-    return [] as any[]
-  if (!stepId)
+  if (!item.value?.activities?.length || !stepId)
     return [] as any[]
   return item.value.activities.filter((a: any) => a.step_id === stepId)
 }
+
+function daysUntil(due: string | null | undefined): number | null {
+  if (!due)
+    return null
+  const d = new Date(due)
+  if (Number.isNaN(d.getTime()))
+    return null
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  d.setHours(0, 0, 0, 0)
+  return Math.round((d.getTime() - today.getTime()) / 86400000)
+}
+
+function deadlineMeta(due: string | null | undefined) {
+  const days = daysUntil(due)
+  if (days == null) {
+    return { tone: 'neutral', label: 'بدون مهلت', detail: 'مهلت مشخص نشده', days: null as number | null }
+  }
+  if (days < 0) {
+    return { tone: 'danger', label: 'گذشته از مهلت', detail: `${toFaDigits(Math.abs(days))} روز تأخیر`, days }
+  }
+  if (days === 0) {
+    return { tone: 'warn', label: 'امروز', detail: 'مهلت امروز است', days }
+  }
+  if (days <= 2) {
+    return { tone: 'warn', label: 'نزدیک', detail: `${toFaDigits(days)} روز مانده`, days }
+  }
+  if (days <= 7) {
+    return { tone: 'info', label: 'در بازه', detail: `${toFaDigits(days)} روز مانده`, days }
+  }
+  return { tone: 'ok', label: 'آرام', detail: `${toFaDigits(days)} روز مانده`, days }
+}
+
+const currentDeadline = computed(() => deadlineMeta(viewingStep.value?.due_on || currentStep.value?.due_on))
+
+function stepAssigneeName(step: any) {
+  return step?.assignee?.name
+    || step?.owner?.name
+    || item.value?.assignee?.name
+    || item.value?.owner?.name
+    || null
+}
+
+function stepAssigneeId(step: any) {
+  return step?.assignee?.id
+    || step?.owner?.id
+    || item.value?.assignee?.id
+    || item.value?.owner?.id
+    || null
+}
+
+const isMyStep = computed(() => {
+  const uid = currentUser.value?.id
+  const aid = stepAssigneeId(viewingStep.value || currentStep.value)
+  return uid != null && aid != null && Number(uid) === Number(aid)
+})
+
+const assigneeLabel = computed(() => {
+  if (isMyStep.value)
+    return 'خودت'
+  return stepAssigneeName(viewingStep.value || currentStep.value) || 'نامشخص'
+})
+
+/** خلاصه‌ساز هوشمند محلی — آماده اتصال به LLM */
+const smartInsight = computed(() => {
+  const d = item.value
+  if (!d)
+    return null
+
+  const steps = d.steps || []
+  const activities = d.activities || []
+  const openSteps = steps.filter((s: any) => s.status === 'open' || s.is_current)
+  const closed = steps.filter((s: any) => s.status === 'closed')
+  const overdue = openSteps.filter((s: any) => {
+    const days = daysUntil(s.due_on)
+    return days != null && days < 0
+  })
+  const recentActs = [...activities]
+    .sort((a: any, b: any) => Number(b.id || 0) - Number(a.id || 0))
+    .slice(0, 3)
+
+  const bullets: string[] = []
+  bullets.push(`وضعیت فرصت: ${statusLabel[d.status] || d.status} · مرحله قیف: ${d.stage?.name || '—'}`)
+  bullets.push(`گام‌های باز: ${toFaDigits(openSteps.length)} · بسته‌شده: ${toFaDigits(closed.length)} · کل فعالیت: ${toFaDigits(activities.length)}`)
+
+  if (overdue.length) {
+    bullets.push(`⚠ ${toFaDigits(overdue.length)} گام از مهلت گذشته — اولویت فوری بستن یا تمدید.`)
+  }
+  else if (currentDeadline.value.tone === 'warn') {
+    bullets.push(`مهلت گام جاری ${currentDeadline.value.detail}؛ امروز پیگیری فعال توصیه می‌شود.`)
+  }
+  else if (currentStep.value) {
+    bullets.push(`گام جاری «${currentStep.value.title}» در وضعیت قابل مدیریت است.`)
+  }
+
+  if (recentActs.length) {
+    const titles = recentActs.map((a: any) => typeLabel[a.type] || a.subject || a.type).join('، ')
+    bullets.push(`آخرین فعالیت‌ها: ${titles}`)
+  }
+  else {
+    bullets.push('هنوز فعالیت ثبت‌شده‌ای نیست — ثبت اولین تماس/جلسه مسیر را روشن می‌کند.'
+    )
+  }
+
+  let suggestion = 'یک فعالیت پیگیری کوتاه ثبت کنید و نتیجه را شفاف بنویسید.'
+  if (overdue.length) {
+    suggestion = 'ابتدا گام معوق را با نتیجه واقعی ببندید یا مهلت جدید تعریف کنید.'
+  }
+  else if (!activities.length && currentStep.value) {
+    suggestion = `برای «${currentStep.value.title}» یک تماس یا جلسه اولیه ثبت کنید.`
+  }
+  else if (closed.length && openSteps.length && currentDeadline.value.tone === 'ok') {
+    suggestion = 'گام فعلی پایدار است؛ می‌توانید گام بعدی را از الان طراحی کنید.'
+  }
+  else if (d.status === 'nurturing') {
+    suggestion = 'فرصت در پرورش است؛ یک محتوای ارزش‌افزا یا نمونه برای مخاطب پیشنهاد دهید.'
+  }
+
+  return {
+    bullets,
+    suggestion,
+    scoreLabel: overdue.length ? 'نیازمند توجه' : currentDeadline.value.tone === 'warn' ? 'حساس' : 'پایدار',
+    scoreTone: overdue.length ? 'danger' : currentDeadline.value.tone === 'warn' ? 'warn' : 'ok',
+  }
+})
 
 async function load() {
   if (!getCompany()?.id) {
@@ -139,6 +266,7 @@ async function load() {
     closeForm.value.stage_id = res.data?.stage?.id ?? null
     closeForm.value.status = res.data?.status || 'active'
     dirty.value = false
+    selectedStepId.value = res.data?.current_step?.id ?? null
   }
   catch (e: any) {
     notifyError(e?.message || 'خطا در بارگذاری')
@@ -151,11 +279,9 @@ async function load() {
 function goDashboard() {
   router.push('/dashboard')
 }
-
 function goList() {
   router.push('/opportunities')
 }
-
 function goBack() {
   if (fromSource.value === 'list') {
     router.push('/opportunities')
@@ -175,11 +301,12 @@ function goBack() {
   }
   router.push('/opportunities')
 }
-
 function goActivityNew() {
   router.push(`/opportunities/${id.value}/activities/new?from=steps`)
 }
-
+function selectStep(step: any) {
+  selectedStepId.value = step?.id ?? null
+}
 function openClose() {
   closeForm.value.result = ''
   closeForm.value.next_step_title = ''
@@ -189,12 +316,10 @@ function openClose() {
   dirty.value = false
   closeOpen.value = true
 }
-
 async function submitClose() {
   const { valid } = await formRef.value?.validate?.() ?? { valid: true }
   if (!valid)
     return
-
   closing.value = true
   try {
     const res = await closeOpportunityStep(id.value, {
@@ -222,9 +347,7 @@ onMounted(load)
 
 <template>
   <div class="steps-workspace">
-    <div v-if="loading" class="text-center py-10 text-medium-emphasis">
-      در حال بارگذاری...
-    </div>
+    <div v-if="loading" class="text-center py-10 text-medium-emphasis">در حال بارگذاری...</div>
 
     <template v-else-if="item">
       <div class="page-breadcrumb d-flex flex-wrap align-center gap-1 text-caption text-medium-emphasis mb-2">
@@ -237,182 +360,230 @@ onMounted(load)
 
       <div class="page-head d-flex flex-wrap align-center justify-space-between gap-3 mb-4">
         <div class="d-flex align-center gap-2 min-w-0">
-          <VBtn
-            icon
-            variant="text"
-            color="secondary"
-            size="small"
-            density="comfortable"
-            :title="fromSource === 'list' ? 'بازگشت به لیست فرصت‌ها' : 'بازگشت'"
-            @click="goBack"
-          >
+          <VBtn icon variant="text" color="secondary" size="small" density="comfortable" @click="goBack">
             <VIcon icon="ri-arrow-right-s-line" size="26" />
           </VBtn>
           <h1 class="page-title text-h6 font-weight-medium mb-0 text-wrap">
             مدیریت گام‌های «{{ item.organization_name }}»
           </h1>
         </div>
-        <div class="d-flex flex-wrap gap-2">
-          <VBtn variant="outlined" color="secondary" size="small" prepend-icon="ri-share-forward-line">پیگیری ارجاع</VBtn>
-          <VBtn color="success" size="small" prepend-icon="ri-checkbox-circle-line">بستن فرصت</VBtn>
-        </div>
-      </div>
-
-      <div class="d-flex flex-wrap gap-1 mb-4">
-        <VChip size="x-small" color="primary" variant="tonal">{{ toFaDigits(item.code) }}</VChip>
-        <VChip size="x-small" color="success" variant="tonal">{{ statusLabel[item.status] || item.status }}</VChip>
-        <VChip v-for="p in productList" :key="p" size="x-small" variant="tonal">{{ p }}</VChip>
-        <VChip v-if="item.stage?.name" size="x-small" variant="tonal" color="secondary">{{ item.stage.name }}</VChip>
-        <VChip v-if="item.assignee?.name" size="x-small" variant="outlined">ارجاع به {{ item.assignee.name }}</VChip>
       </div>
 
       <VRow dense>
-        <VCol cols="12" lg="4" order="2" order-lg="1">
-          <VCard class="mb-3 side-card">
-            <VCardText class="pa-4">
-              <div class="text-caption text-medium-emphasis mb-1">مخاطب</div>
-              <div class="text-subtitle-1 font-weight-medium">{{ item.contact_name || '—' }}</div>
-              <div v-if="item.contact_role" class="text-body-2 text-medium-emphasis">{{ item.contact_role }}</div>
-              <div class="text-body-2 mt-1">{{ toFaDigits(item.contact_mobile || item.contact_phone || '—') }}</div>
-            </VCardText>
-          </VCard>
+        <!-- MAIN -->
+        <VCol cols="12" lg="8">
+          <!-- Current step gamified -->
+          <div
+            v-if="currentStep || viewingStep"
+            class="hero-step mb-3"
+            :class="`hero-step--${currentDeadline.tone}`"
+          >
+            <div class="hero-step__glow" />
+            <div class="hero-step__body">
+              <div class="d-flex flex-wrap align-start justify-space-between gap-3">
+                <div class="min-w-0 flex-grow-1">
+                  <div class="d-flex flex-wrap align-center gap-2 mb-2">
+                    <span class="hero-badge">گام {{ selectedStepId && selectedStepId !== currentStep?.id ? 'انتخاب‌شده' : 'جاری' }}</span>
+                    <span class="deadline-pill" :class="`deadline-pill--${currentDeadline.tone}`">
+                      {{ currentDeadline.label }} · {{ currentDeadline.detail }}
+                    </span>
+                  </div>
+                  <h2 class="hero-title text-wrap mb-3">
+                    {{ viewingStep?.title || currentStep?.title }}
+                  </h2>
+                  <div class="d-flex flex-wrap gap-3 meta-row">
+                    <div class="meta-chip">
+                      <VIcon icon="ri-calendar-event-line" size="18" />
+                      <span>مهلت {{ formatJalaliFa(viewingStep?.due_on || currentStep?.due_on) || '—' }}</span>
+                    </div>
+                    <div class="meta-chip" :class="{ 'meta-chip--me': isMyStep }">
+                      <VIcon icon="ri-user-star-line" size="18" />
+                      <span>مسئول: {{ assigneeLabel }}</span>
+                    </div>
+                  </div>
+                </div>
 
-          <VCard class="mb-3 side-card">
-            <VCardText class="pa-0">
-              <div class="px-4 pt-3 pb-2 text-body-2 font-weight-medium">جزئیات فرصت</div>
-              <VDivider />
-              <div class="detail-row"><span class="label">محصول</span><span class="value">{{ productList.join('، ') || '—' }}</span></div>
-              <div class="detail-row"><span class="label">مرحله قیف</span><span class="value">{{ item.stage?.name || '—' }}</span></div>
-              <div class="detail-row"><span class="label">وضعیت</span><span class="value">{{ statusLabel[item.status] || item.status }}</span></div>
-              <div class="detail-row"><span class="label">کاربرد</span><span class="value">{{ item.application || item.usage || '—' }}</span></div>
-              <div class="detail-row"><span class="label">تیراژ</span><span class="value">{{ toFaDigits(item.quantity || item.tirazh || '—') }}</span></div>
-              <div class="detail-row"><span class="label">بودجه</span><span class="value">{{ item.budget_label || item.budget || '—' }}</span></div>
-              <div class="detail-row"><span class="label">مالک</span><span class="value">{{ item.owner?.name || '—' }}</span></div>
-              <div class="detail-row"><span class="label">ارجاع به</span><span class="value">{{ item.assignee?.name || '—' }}</span></div>
-              <div class="detail-row"><span class="label">آخرین تعامل</span><span class="value">{{ formatJalaliFa(item.last_activity_at || item.updated_at) || '—' }}</span></div>
-              <div class="detail-row detail-row--block"><span class="label">خلاصه</span><span class="value text-wrap">{{ item.summary || item.need_summary || '—' }}</span></div>
-            </VCardText>
-          </VCard>
-
-          <VCard class="mb-3 side-card">
-            <VCardText class="pa-0">
-              <div class="px-4 pt-3 pb-2 text-body-2 font-weight-medium">راهنمای دانش</div>
-              <VDivider />
-              <div v-for="(k, idx) in knowledgeItems" :key="idx" class="knowledge-row">
-                <div class="text-body-2">{{ k.title }}</div>
-                <div class="text-caption text-medium-emphasis">{{ k.meta || k.type || '' }}</div>
+                <div class="d-flex flex-column gap-2 action-stack">
+                  <button type="button" class="gfx-btn gfx-btn--close" @click="openClose">
+                    <span class="gfx-btn__icon"><VIcon icon="ri-checkbox-circle-fill" size="22" /></span>
+                    <span class="gfx-btn__text">
+                      <strong>بستن گام</strong>
+                      <small>ثبت نتیجه و ادامه</small>
+                    </span>
+                  </button>
+                  <button type="button" class="gfx-btn gfx-btn--delete" disabled title="به‌زودی">
+                    <span class="gfx-btn__icon"><VIcon icon="ri-delete-bin-6-fill" size="22" /></span>
+                    <span class="gfx-btn__text">
+                      <strong>حذف گام</strong>
+                      <small>غیرفعال تا تأیید</small>
+                    </span>
+                  </button>
+                </div>
               </div>
+            </div>
+          </div>
+
+          <!-- Activities of selected/current step -->
+          <VCard class="mb-3 main-card activity-box">
+            <VCardText class="pa-4">
+              <div class="d-flex flex-wrap align-center justify-space-between gap-2 mb-3">
+                <div class="text-subtitle-2 font-weight-medium d-flex align-center gap-2">
+                  <span class="section-orb section-orb--primary" />
+                  فعالیت‌های این گام
+                </div>
+                <VBtn color="primary" size="small" variant="tonal" prepend-icon="ri-add-line" @click="goActivityNew">
+                  ثبت فعالیت
+                </VBtn>
+              </div>
+
+              <div v-if="!stepActivities.length" class="empty-soft">
+                هنوز فعالیتی برای این گام ثبت نشده.
+              </div>
+
+              <div v-for="a in stepActivities" :key="a.id" class="activity-item">
+                <div class="activity-item__bar" />
+                <div class="min-w-0 flex-grow-1">
+                  <div class="d-flex flex-wrap align-center gap-2 mb-1">
+                    <span class="text-body-2 font-weight-medium">{{ typeLabel[a.type] || a.subject || a.type }}</span>
+                    <span class="text-caption text-medium-emphasis">{{ formatJalaliFa(a.happened_at || a.created_at) }}</span>
+                  </div>
+                  <div class="text-body-2 text-medium-emphasis text-wrap">{{ a.body }}</div>
+                </div>
+              </div>
+            </VCardText>
+          </VCard>
+
+          <!-- Steps table -->
+          <VCard class="mb-3 main-card">
+            <VCardText class="pa-4">
+              <div class="text-subtitle-2 font-weight-medium d-flex align-center gap-2 mb-3">
+                <span class="section-orb section-orb--secondary" />
+                فهرست گام‌ها
+              </div>
+
+              <div v-if="!allSteps.length" class="empty-soft">گامی ثبت نشده است.</div>
+
+              <VTable v-else density="comfortable" class="steps-table">
+                <thead>
+                  <tr>
+                    <th>عنوان گام</th>
+                    <th>وضعیت</th>
+                    <th>مهلت</th>
+                    <th>فعالیت</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="s in allSteps"
+                    :key="s.id"
+                    class="steps-table__row"
+                    :class="{ 'steps-table__row--active': selectedStepId === s.id }"
+                    @click="selectStep(s)"
+                  >
+                    <td class="font-weight-medium">{{ s.title }}</td>
+                    <td>
+                      <VChip
+                        size="x-small"
+                        :color="s.status === 'open' || s.is_current ? 'primary' : 'secondary'"
+                        variant="tonal"
+                      >
+                        {{ s.status === 'open' || s.is_current ? 'باز' : 'بسته' }}
+                      </VChip>
+                    </td>
+                    <td>
+                      <span class="deadline-dot" :class="`deadline-dot--${deadlineMeta(s.due_on).tone}`" />
+                      {{ formatJalaliFa(s.due_on) || '—' }}
+                    </td>
+                    <td>{{ toFaDigits(activitiesOfStep(s.id).length) }}</td>
+                    <td class="text-end">
+                      <VIcon icon="ri-arrow-left-s-line" size="18" class="text-medium-emphasis" />
+                    </td>
+                  </tr>
+                </tbody>
+              </VTable>
             </VCardText>
           </VCard>
         </VCol>
 
-        <VCol cols="12" lg="8" order="1" order-lg="2">
-          <VCard class="mb-3 main-card current-step-card">
+        <!-- SIDE -->
+        <VCol cols="12" lg="4">
+          <!-- Smart insight -->
+          <VCard v-if="smartInsight" class="mb-3 insight-card">
             <VCardText class="pa-4">
-              <div class="d-flex flex-wrap align-start justify-space-between gap-3">
-                <div class="min-w-0 flex-grow-1">
-                  <div class="text-caption text-medium-emphasis mb-1">گام جاری</div>
-                  <template v-if="currentStep">
-                    <div class="text-h6 font-weight-medium mb-2 text-wrap">{{ currentStep.title }}</div>
-                    <div class="d-flex flex-wrap gap-3 text-body-2 text-medium-emphasis">
-                      <span>مهلت: {{ formatJalaliFa(currentStep.due_on) || '—' }}</span>
-                      <span v-if="item.assignee?.name">{{ item.assignee.name }}</span>
-                    </div>
-                  </template>
-                  <div v-else class="text-body-2 text-medium-emphasis">گام بازی تعریف نشده است.</div>
+              <div class="d-flex align-center justify-space-between mb-2">
+                <div class="text-subtitle-2 font-weight-medium d-flex align-center gap-2">
+                  <VIcon icon="ri-sparkling-2-fill" color="primary" size="20" />
+                  وضعیت و برآیند
                 </div>
-                <div v-if="currentStep" class="d-flex flex-column align-end gap-2">
-                  <VBtn color="primary" size="small" @click="openClose">بستن گام</VBtn>
-                  <VBtn variant="outlined" color="error" size="small" disabled>حذف گام</VBtn>
-                  <div class="text-caption text-medium-emphasis text-end" style="max-inline-size: 12rem;">گام را با نتیجه ببندید؛ فعالیت جداگانه از دکمه زیر است.</div>
-                </div>
+                <VChip
+                  size="x-small"
+                  variant="flat"
+                  :color="smartInsight.scoreTone === 'danger' ? 'error' : smartInsight.scoreTone === 'warn' ? 'warning' : 'success'"
+                >
+                  {{ smartInsight.scoreLabel }}
+                </VChip>
+              </div>
+              <ul class="insight-list">
+                <li v-for="(b, i) in smartInsight.bullets" :key="i">{{ b }}</li>
+              </ul>
+              <div class="insight-suggest mt-3">
+                <div class="text-caption text-medium-emphasis mb-1">پیشنهاد گام / فعالیت بعدی</div>
+                <div class="text-body-2 font-weight-medium">{{ smartInsight.suggestion }}</div>
+              </div>
+              <div class="text-caption text-disabled mt-2">تحلیل هوشمند محلی از داده‌های همین فرصت</div>
+            </VCardText>
+          </VCard>
+
+          <!-- Compact opportunity info -->
+          <VCard class="mb-3 side-card side-card--compact">
+            <VCardText class="pa-3">
+              <div class="text-caption text-medium-emphasis mb-1">فرصت</div>
+              <div class="text-body-1 font-weight-medium mb-2 text-wrap">{{ item.organization_name }}</div>
+              <div class="d-flex flex-wrap gap-1 mb-2">
+                <VChip size="x-small" color="primary" variant="tonal">{{ toFaDigits(item.code) }}</VChip>
+                <VChip size="x-small" color="success" variant="tonal">{{ statusLabel[item.status] || item.status }}</VChip>
+                <VChip v-if="item.stage?.name" size="x-small" variant="tonal">{{ item.stage.name }}</VChip>
+              </div>
+              <div class="compact-grid">
+                <div><span class="k">مخاطب</span><span class="v">{{ item.contact_name || '—' }}</span></div>
+                <div><span class="k">محصول</span><span class="v">{{ productList[0] || '—' }}</span></div>
+                <div><span class="k">مالک</span><span class="v">{{ item.owner?.name || '—' }}</span></div>
+                <div><span class="k">ارجاع</span><span class="v">{{ item.assignee?.name || '—' }}</span></div>
               </div>
             </VCardText>
           </VCard>
 
-          <VCard class="mb-3 main-card">
-            <VCardText class="pa-4">
-              <div class="d-flex flex-wrap align-center justify-space-between gap-2 mb-3">
-                <div class="text-subtitle-2 font-weight-medium">فعالیت‌های زیر این گام</div>
-                <VBtn color="primary" size="small" variant="tonal" prepend-icon="ri-add-line" @click="goActivityNew">ثبت فعالیت</VBtn>
-              </div>
-              <div v-if="!stepActivities.length" class="text-body-2 text-medium-emphasis pa-2">هنوز فعالیتی برای این گام ثبت نشده.</div>
-              <div v-for="a in stepActivities" :key="a.id" class="activity-item">
-                <div class="d-flex align-start justify-space-between gap-2">
-                  <div class="min-w-0">
-                    <div class="d-flex flex-wrap align-center gap-2 mb-1">
-                      <span class="text-body-2 font-weight-medium">{{ typeLabel[a.type] || a.subject || a.type }}</span>
-                      <span class="text-caption text-medium-emphasis">{{ formatJalaliFa(a.happened_at || a.created_at) }}</span>
-                    </div>
-                    <div class="text-body-2 text-medium-emphasis text-wrap">{{ a.body }}</div>
-                    <div v-if="a.created_by?.name || a.user?.name" class="text-caption text-medium-emphasis mt-1">ثبت: {{ a.created_by?.name || a.user?.name }}</div>
-                  </div>
-                  <VBtn size="x-small" variant="tonal" color="error" disabled>حذف</VBtn>
-                </div>
-              </div>
-            </VCardText>
-          </VCard>
-
-          <VCard class="mb-3 main-card">
-            <VCardText class="pa-4">
-              <div class="text-subtitle-2 font-weight-medium mb-3">گام‌های قبلی</div>
-              <div v-if="!closedSteps.length" class="text-body-2 text-medium-emphasis">هنوز گامی بسته نشده.</div>
-              <VExpansionPanels v-else variant="accordion" class="step-panels">
-                <VExpansionPanel v-for="s in closedSteps" :key="s.id">
-                  <VExpansionPanelTitle>
-                    <div class="d-flex flex-wrap align-center justify-space-between gap-2 w-100 pe-2">
-                      <span class="font-weight-medium">{{ s.title }}</span>
-                      <div class="d-flex align-center gap-2">
-                        <span class="text-caption text-medium-emphasis">{{ formatJalaliFa(s.closed_at || s.due_on) }}</span>
-                        <VChip size="x-small" variant="tonal">{{ toFaDigits(activitiesOfStep(s.id).length) }} فعالیت</VChip>
-                      </div>
-                    </div>
-                  </VExpansionPanelTitle>
-                  <VExpansionPanelText>
-                    <div v-if="s.result" class="text-body-2 mb-2"><span class="text-medium-emphasis">نتیجه: </span>{{ s.result }}</div>
-                    <div v-for="a in activitiesOfStep(s.id)" :key="a.id" class="activity-item activity-item--nested">
-                      <div class="text-body-2 font-weight-medium">
-                        {{ typeLabel[a.type] || a.subject || a.type }}
-                        <span class="text-caption text-medium-emphasis ms-2">{{ formatJalaliFa(a.happened_at || a.created_at) }}</span>
-                      </div>
-                      <div class="text-body-2 text-medium-emphasis">{{ a.body }}</div>
-                    </div>
-                  </VExpansionPanelText>
-                </VExpansionPanel>
-              </VExpansionPanels>
-            </VCardText>
-          </VCard>
-
-          <VCard class="main-card">
-            <VCardText class="pa-4">
-              <div class="text-subtitle-2 font-weight-medium mb-3">سلسله ارجاع</div>
-              <VTable v-if="referrals.length" density="compact" class="referral-table">
-                <thead>
-                  <tr><th>#</th><th>زمان</th><th>از</th><th>به</th><th>عمل</th><th>توضیح</th></tr>
-                </thead>
-                <tbody>
-                  <tr v-for="(r, idx) in referrals" :key="r.id || idx">
-                    <td>{{ toFaDigits(idx + 1) }}</td>
-                    <td>{{ formatJalaliFa(r.created_at) }}</td>
-                    <td>{{ r.from_user?.name || r.from || '—' }}</td>
-                    <td>{{ r.to_user?.name || r.to || '—' }}</td>
-                    <td>{{ r.action || 'ارجاع' }}</td>
-                    <td>{{ r.note || r.description || '—' }}</td>
-                  </tr>
-                </tbody>
-              </VTable>
-              <div v-else class="text-body-2 text-medium-emphasis">ارجاعی ثبت نشده است.</div>
-            </VCardText>
-          </VCard>
+          <div class="deco-stack">
+            <div class="deco-orb deco-orb--1" />
+            <div class="deco-orb deco-orb--2" />
+          </div>
         </VCol>
       </VRow>
     </template>
 
-    <FormDrawer v-model="closeOpen" title="بستن گام" subtitle="نتیجه و گام بعدی را مشخص کنید" :dirty="dirty" :width="480">
+    <FormDrawer
+      v-model="closeOpen"
+      title="بستن گام"
+      subtitle="نتیجه و گام بعدی را مشخص کنید"
+      :dirty="dirty"
+      :width="480"
+    >
       <VForm ref="formRef" @submit.prevent="submitClose">
         <VTextarea v-model="closeForm.result" label="نتیجه این گام" rows="3" class="mb-3" :rules="[rules.required('نتیجه')]" />
         <VSelect v-model="closeForm.stage_id" :items="stages" label="مرحله قیف" class="mb-3" />
-        <VSelect v-model="closeForm.status" :items="[{ title: 'فعال', value: 'active' }, { title: 'در حال پرورش', value: 'nurturing' }, { title: 'متوقف موقت', value: 'paused' }, { title: 'بسته‌شده-موفق', value: 'won' }, { title: 'بسته‌شده-ناموفق', value: 'lost' }]" label="وضعیت فرصت" class="mb-3" />
+        <VSelect
+          v-model="closeForm.status"
+          :items="[
+            { title: 'فعال', value: 'active' },
+            { title: 'در حال پرورش', value: 'nurturing' },
+            { title: 'متوقف موقت', value: 'paused' },
+            { title: 'بسته‌شده-موفق', value: 'won' },
+            { title: 'بسته‌شده-ناموفق', value: 'lost' },
+          ]"
+          label="وضعیت فرصت"
+          class="mb-3"
+        />
         <VTextField v-model="closeForm.next_step_title" label="گام بعدی (اختیاری)" class="mb-3" />
         <JalaliDateField v-model="closeForm.next_step_due_on" label="مهلت گام بعدی" />
       </VForm>
@@ -425,23 +596,261 @@ onMounted(load)
 </template>
 
 <style scoped>
-.steps-workspace { font-family: 'Vazirmatn', Vazirmatn, Tahoma, sans-serif !important; }
-.steps-workspace :deep(*) { font-family: 'Vazirmatn', Vazirmatn, Tahoma, sans-serif !important; }
+.steps-workspace {
+  font-family: 'Vazirmatn', Vazirmatn, Tahoma, sans-serif !important;
+  position: relative;
+}
+.steps-workspace :deep(*) {
+  font-family: 'Vazirmatn', Vazirmatn, Tahoma, sans-serif !important;
+}
 .page-title { line-height: 1.4; }
-.page-head { margin-block-start: 0; }
-.crumb-btn { background: none; border: 0; padding: 0; cursor: pointer; font: inherit; color: inherit; }
+.crumb-btn {
+  background: none; border: 0; padding: 0; cursor: pointer; font: inherit; color: inherit;
+}
 .crumb-btn:hover { color: rgb(var(--v-theme-primary)); }
-.side-card, .main-card { border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity)); box-shadow: none !important; }
-.current-step-card { border-color: rgba(var(--v-theme-primary), 0.35); }
-.detail-row { display: flex; justify-content: space-between; gap: 1rem; padding: 0.65rem 1rem; border-block-end: 1px solid rgba(var(--v-border-color), var(--v-border-opacity)); font-size: 0.875rem; }
-.detail-row--block { flex-direction: column; gap: 0.25rem; }
-.detail-row .label { color: rgba(var(--v-theme-on-surface), var(--v-medium-emphasis-opacity)); flex-shrink: 0; }
-.detail-row .value { text-align: end; }
-.detail-row--block .value { text-align: start; }
-.knowledge-row { padding: 0.75rem 1rem; border-block-end: 1px solid rgba(var(--v-border-color), var(--v-border-opacity)); }
-.activity-item { padding: 0.85rem 0.75rem; border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity)); border-radius: 10px; margin-block-end: 0.75rem; background: rgba(var(--v-theme-on-surface), 0.02); }
-.activity-item--nested { margin-block-start: 0.5rem; }
-.step-panels :deep(.v-expansion-panel-title) { padding-inline: 0.75rem; min-block-size: 48px; }
-.referral-table :deep(th),
-.referral-table :deep(td) { white-space: nowrap; font-size: 0.8125rem; }
+
+/* Hero step */
+.hero-step {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  background: rgb(var(--v-theme-surface));
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.06);
+}
+.hero-step::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 6px;
+  background: #9e9e9e;
+}
+.hero-step--danger::before { background: linear-gradient(180deg, #ff5252, #c62828); }
+.hero-step--warn::before { background: linear-gradient(180deg, #ffb74d, #ef6c00); }
+.hero-step--info::before { background: linear-gradient(180deg, #64b5f6, #1565c0); }
+.hero-step--ok::before { background: linear-gradient(180deg, #81c784, #2e7d32); }
+.hero-step--neutral::before { background: linear-gradient(180deg, #bdbdbd, #757575); }
+
+.hero-step--danger { background: linear-gradient(135deg, rgba(244,67,54,0.08), rgb(var(--v-theme-surface)) 55%); }
+.hero-step--warn { background: linear-gradient(135deg, rgba(255,152,0,0.1), rgb(var(--v-theme-surface)) 55%); }
+.hero-step--info { background: linear-gradient(135deg, rgba(33,150,243,0.08), rgb(var(--v-theme-surface)) 55%); }
+.hero-step--ok { background: linear-gradient(135deg, rgba(76,175,80,0.08), rgb(var(--v-theme-surface)) 55%); }
+
+.hero-step__glow {
+  position: absolute;
+  inset-inline-end: -40px;
+  inset-block-start: -40px;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(var(--v-theme-primary), 0.18), transparent 70%);
+  pointer-events: none;
+}
+.hero-step__body { position: relative; padding: 1.1rem 1.25rem; }
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  background: rgba(var(--v-theme-primary), 0.12);
+  color: rgb(var(--v-theme-primary));
+  font-weight: 600;
+}
+.hero-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1.45;
+  margin: 0;
+}
+.deadline-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.deadline-pill--danger { background: rgba(244,67,54,0.15); color: #c62828; }
+.deadline-pill--warn { background: rgba(255,152,0,0.18); color: #e65100; }
+.deadline-pill--info { background: rgba(33,150,243,0.15); color: #1565c0; }
+.deadline-pill--ok { background: rgba(76,175,80,0.15); color: #2e7d32; }
+.deadline-pill--neutral { background: rgba(158,158,158,0.15); color: #616161; }
+
+.meta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 10px;
+  background: rgba(var(--v-theme-on-surface), 0.04);
+  font-size: 0.875rem;
+}
+.meta-chip--me {
+  background: rgba(var(--v-theme-primary), 0.12);
+  color: rgb(var(--v-theme-primary));
+  font-weight: 600;
+}
+
+/* Graphical buttons */
+.gfx-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-inline-size: 11.5rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 12px;
+  border: 0;
+  cursor: pointer;
+  text-align: start;
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.25);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.gfx-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 22px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,0.3);
+}
+.gfx-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.gfx-btn--close {
+  background: linear-gradient(145deg, #42a5f5, #1e88e5 45%, #1565c0);
+}
+.gfx-btn--delete {
+  background: linear-gradient(145deg, #ef9a9a, #e53935 45%, #b71c1c);
+}
+.gfx-btn__icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.18);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.35);
+}
+.gfx-btn__text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.gfx-btn__text strong { font-size: 0.9rem; }
+.gfx-btn__text small { font-size: 0.7rem; opacity: 0.9; }
+
+.main-card, .side-card {
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  box-shadow: 0 6px 18px rgba(0,0,0,0.04) !important;
+  border-radius: 14px !important;
+}
+.section-orb {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  box-shadow: 0 0 0 4px rgba(var(--v-theme-primary), 0.12);
+}
+.section-orb--primary { background: rgb(var(--v-theme-primary)); }
+.section-orb--secondary { background: #7e57c2; box-shadow: 0 0 0 4px rgba(126,87,194,0.15); }
+
+.activity-item {
+  position: relative;
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.85rem 0.75rem;
+  border-radius: 12px;
+  margin-block-end: 0.65rem;
+  background: rgba(var(--v-theme-on-surface), 0.025);
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+.activity-item__bar {
+  width: 4px;
+  border-radius: 4px;
+  background: linear-gradient(180deg, rgb(var(--v-theme-primary)), rgba(var(--v-theme-primary), 0.3));
+  flex-shrink: 0;
+}
+.empty-soft {
+  padding: 1rem;
+  border-radius: 12px;
+  background: rgba(var(--v-theme-on-surface), 0.03);
+  color: rgba(var(--v-theme-on-surface), var(--v-medium-emphasis-opacity));
+  font-size: 0.875rem;
+}
+
+.steps-table :deep(th) { font-size: 0.8rem; white-space: nowrap; }
+.steps-table :deep(td) { font-size: 0.875rem; }
+.steps-table__row { cursor: pointer; transition: background 0.12s ease; }
+.steps-table__row:hover { background: rgba(var(--v-theme-primary), 0.05); }
+.steps-table__row--active { background: rgba(var(--v-theme-primary), 0.08); }
+.deadline-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-inline-end: 0.35rem;
+  vertical-align: middle;
+}
+.deadline-dot--danger { background: #e53935; }
+.deadline-dot--warn { background: #fb8c00; }
+.deadline-dot--info { background: #1e88e5; }
+.deadline-dot--ok { background: #43a047; }
+.deadline-dot--neutral { background: #9e9e9e; }
+
+.insight-card {
+  border: 1px solid rgba(var(--v-theme-primary), 0.22);
+  background:
+    radial-gradient(120px 80px at 100% 0%, rgba(var(--v-theme-primary), 0.12), transparent),
+    rgb(var(--v-theme-surface));
+  box-shadow: 0 10px 24px rgba(var(--v-theme-primary), 0.08) !important;
+  border-radius: 14px !important;
+}
+.insight-list {
+  margin: 0;
+  padding-inline-start: 1.1rem;
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+.insight-suggest {
+  padding: 0.75rem;
+  border-radius: 12px;
+  background: rgba(var(--v-theme-primary), 0.08);
+  border: 1px dashed rgba(var(--v-theme-primary), 0.35);
+}
+
+.side-card--compact { border-radius: 14px !important; }
+.compact-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem 0.75rem;
+  font-size: 0.8rem;
+}
+.compact-grid .k {
+  display: block;
+  color: rgba(var(--v-theme-on-surface), var(--v-medium-emphasis-opacity));
+  font-size: 0.72rem;
+}
+.compact-grid .v { font-weight: 600; }
+
+.deco-stack { position: relative; height: 80px; pointer-events: none; }
+.deco-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(0.5px);
+}
+.deco-orb--1 {
+  width: 70px; height: 70px; inset-inline-start: 10%;
+  background: radial-gradient(circle at 30% 30%, rgba(var(--v-theme-primary), 0.35), transparent 70%);
+}
+.deco-orb--2 {
+  width: 50px; height: 50px; inset-inline-end: 15%; inset-block-start: 20px;
+  background: radial-gradient(circle at 30% 30%, rgba(126, 87, 194, 0.35), transparent 70%);
+}
+
+@media (max-width: 600px) {
+  .gfx-btn { min-inline-size: 100%; }
+  .action-stack { width: 100%; }
+}
 </style>
