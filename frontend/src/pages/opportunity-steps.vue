@@ -108,12 +108,12 @@ function daysUntil(due: string | null | undefined): number | null {
 }
 function deadlineMeta(due: string | null | undefined) {
   const days = daysUntil(due)
-  if (days == null) return { tone: 'neutral', label: 'بدون مهلت', detail: 'مهلت مشخص نشده', days: null as number | null }
-  if (days < 0) return { tone: 'danger', label: 'گذشته از مهلت', detail: `${toFaDigits(Math.abs(days))} روز تأخیر`, days }
-  if (days === 0) return { tone: 'warn', label: 'امروز', detail: 'مهلت امروز است', days }
-  if (days <= 2) return { tone: 'warn', label: 'نزدیک', detail: `${toFaDigits(days)} روز مانده`, days }
-  if (days <= 7) return { tone: 'info', label: 'در بازه', detail: `${toFaDigits(days)} روز مانده`, days }
-  return { tone: 'ok', label: 'آرام', detail: `${toFaDigits(days)} روز مانده`, days }
+  if (days == null) return { tone: 'neutral', label: 'بدون مهلت', detail: '', days: null as number | null }
+  if (days < 0) return { tone: 'danger', label: `${toFaDigits(Math.abs(days))}روز تأخیر`, detail: '', days }
+  if (days === 0) return { tone: 'warn', label: 'امروز', detail: '', days }
+  if (days <= 2) return { tone: 'warn', label: `${toFaDigits(days)}روز`, detail: '', days }
+  if (days <= 7) return { tone: 'info', label: `${toFaDigits(days)}روز`, detail: '', days }
+  return { tone: 'ok', label: `${toFaDigits(days)}روز`, detail: '', days }
 }
 const currentDeadline = computed(() => deadlineMeta(viewingStep.value?.due_on || currentStep.value?.due_on))
 function stepAssigneeName(step: any) {
@@ -155,7 +155,7 @@ const smartInsight = computed(() => {
     scoreLabel = 'نیازمند توجه'
   }
   else if (currentDeadline.value.tone === 'warn' || currentDeadline.value.tone === 'danger') {
-    alert = `مهلت گام جاری: ${currentDeadline.value.detail}`
+    alert = `مهلت گام جاری: ${currentDeadline.value.label}`
     scoreTone = currentDeadline.value.tone === 'danger' ? 'danger' : 'warn'
     scoreLabel = scoreTone === 'danger' ? 'نیازمند توجه' : 'حساس'
   }
@@ -283,23 +283,31 @@ onMounted(load)
       <VRow dense>
         <VCol cols="12" lg="8">
           <div v-if="currentStep || viewingStep" class="hero-step mb-3" :class="`hero-step--${currentDeadline.tone}`">
-            <div class="hero-step__glow" />
             <div class="hero-step__body">
-              <div class="d-flex flex-wrap align-start justify-space-between gap-3">
+              <div class="hero-top d-flex flex-wrap align-center justify-space-between gap-2">
                 <div class="min-w-0 flex-grow-1">
-                  <div class="d-flex flex-wrap align-center gap-2 mb-2">
-                    <span class="hero-badge">گام {{ selectedStepId && selectedStepId !== currentStep?.id ? 'انتخاب‌شده' : 'جاری' }}</span>
-                    <span class="deadline-pill" :class="`deadline-pill--${currentDeadline.tone}`">{{ currentDeadline.label }} · {{ currentDeadline.detail }}</span>
+                  <div class="d-flex flex-wrap align-center gap-2 mb-1">
+                    <span class="hero-badge">{{ selectedStepId && selectedStepId !== currentStep?.id ? 'انتخاب‌شده' : 'جاری' }}</span>
+                    <span
+                      v-if="currentDeadline.tone !== 'ok' && currentDeadline.tone !== 'neutral'"
+                      class="deadline-pill"
+                      :class="`deadline-pill--${currentDeadline.tone}`"
+                    >{{ currentDeadline.label }}</span>
                   </div>
-                  <h2 class="hero-title text-wrap mb-3">{{ viewingStep?.title || currentStep?.title }}</h2>
-                  <div class="d-flex flex-wrap gap-3">
-                    <div class="meta-chip"><VIcon icon="ri-calendar-event-line" size="18" /><span>مهلت {{ formatJalaliFa(viewingStep?.due_on || currentStep?.due_on) || '—' }}</span></div>
-                    <div class="meta-chip" :class="{ 'meta-chip--me': isMyStep }"><VIcon icon="ri-user-star-line" size="18" /><span>مسئول: {{ assigneeLabel }}</span></div>
+                  <h2 class="hero-title text-wrap mb-1">{{ viewingStep?.title || currentStep?.title }}</h2>
+                  <div class="hero-meta text-caption text-medium-emphasis">
+                    <span>{{ formatJalaliFa(viewingStep?.due_on || currentStep?.due_on) || 'بدون مهلت' }}</span>
+                    <span class="hero-meta__dot">·</span>
+                    <span :class="{ 'text-primary': isMyStep }">{{ assigneeLabel }}</span>
                   </div>
                 </div>
-                <div class="d-flex flex-column gap-2 action-stack">
-                  <button type="button" class="gfx-btn gfx-btn--close" @click="openClose"><span class="gfx-btn__icon"><VIcon icon="ri-checkbox-circle-fill" size="22" /></span><span class="gfx-btn__text"><strong>بستن گام</strong><small>ثبت نتیجه و ادامه</small></span></button>
-                  <button type="button" class="gfx-btn gfx-btn--delete" disabled><span class="gfx-btn__icon"><VIcon icon="ri-delete-bin-6-fill" size="22" /></span><span class="gfx-btn__text"><strong>حذف گام</strong><small>غیرفعال تا تأیید</small></span></button>
+                <div class="hero-actions d-flex align-center gap-1 flex-shrink-0">
+                  <VBtn color="primary" size="small" variant="flat" prepend-icon="ri-checkbox-circle-line" @click="openClose">
+                    بستن گام
+                  </VBtn>
+                  <VBtn icon size="x-small" variant="text" color="secondary" disabled title="حذف فقط برای مدیر">
+                    <VIcon icon="ri-more-2-fill" size="18" />
+                  </VBtn>
                 </div>
               </div>
             </div>
@@ -342,7 +350,7 @@ onMounted(load)
         </VCol>
 
         <VCol cols="12" lg="4">
-                    <VCard v-if="smartInsight" class="mb-3 insight-card">
+          <VCard v-if="smartInsight" class="mb-3 insight-card">
             <VCardText class="pa-3">
               <div class="insight-head d-flex align-center justify-space-between gap-2 mb-3">
                 <div class="text-body-2 d-flex align-center gap-1 text-medium-emphasis">
@@ -390,99 +398,162 @@ onMounted(load)
             </VCardText>
           </VCard>
 
-          <VCard class="mb-3 side-card side-card--compact"><VCardText class="pa-3">
-            <div class="text-caption text-medium-emphasis mb-1">فرصت</div>
-            <div class="text-body-1 font-weight-medium mb-2 text-wrap">{{ item.organization_name }}</div>
-            <div class="d-flex flex-wrap gap-1 mb-2">
-              <VChip size="x-small" color="primary" variant="tonal">{{ toFaDigits(item.code) }}</VChip>
-              <VChip size="x-small" color="success" variant="tonal">{{ statusLabel[item.status] || item.status }}</VChip>
-              <VChip v-if="item.stage?.name" size="x-small" variant="tonal">{{ item.stage.name }}</VChip>
-            </div>
-            <div class="compact-grid">
-              <div><span class="k">مخاطب</span><span class="v">{{ item.contact_name || '—' }}</span></div>
-              <div><span class="k">محصول</span><span class="v">{{ productList[0] || '—' }}</span></div>
-              <div><span class="k">مالک</span><span class="v">{{ item.owner?.name || '—' }}</span></div>
-              <div><span class="k">ارجاع</span><span class="v">{{ item.assignee?.name || '—' }}</span></div>
-            </div>
+          <VCard class="mb-3 main-card"><VCardText class="pa-4">
+            <div class="text-subtitle-2 font-weight-medium mb-3 d-flex align-center gap-2"><span class="section-orb section-orb--info" />خلاصه فرصت</div>
+            <div class="text-body-2 mb-2"><span class="text-medium-emphasis">طرف:</span> {{ item.organization_name }}</div>
+            <div class="text-body-2 mb-2"><span class="text-medium-emphasis">مرحله:</span> {{ item.stage?.name || '—' }}</div>
+            <div class="text-body-2 mb-2"><span class="text-medium-emphasis">وضعیت:</span> {{ statusLabel[item.status] || item.status }}</div>
+            <div class="text-body-2"><span class="text-medium-emphasis">مسئول:</span> {{ item.assignee?.name || item.owner?.name || '—' }}</div>
           </VCardText></VCard>
         </VCol>
       </VRow>
-    </template>
 
-    <FormDrawer v-model="closeOpen" title="بستن گام" subtitle="نتیجه و گام بعدی را مشخص کنید" :dirty="dirty" :width="480">
-      <VForm ref="formRef" @submit.prevent="submitClose">
-        <VTextarea v-model="closeForm.result" label="نتیجه این گام" rows="3" class="mb-3" :rules="[rules.required('نتیجه')]" />
-        <VSelect v-model="closeForm.stage_id" :items="stages" label="مرحله قیف" class="mb-3" />
-        <VSelect v-model="closeForm.status" :items="[{ title: 'فعال', value: 'active' }, { title: 'در حال پرورش', value: 'nurturing' }, { title: 'متوقف موقت', value: 'paused' }, { title: 'بسته‌شده-موفق', value: 'won' }, { title: 'بسته‌شده-ناموفق', value: 'lost' }]" label="وضعیت فرصت" class="mb-3" />
-        <VTextField v-model="closeForm.next_step_title" label="گام بعدی (اختیاری)" class="mb-3" />
-        <JalaliDateField v-model="closeForm.next_step_due_on" label="مهلت گام بعدی" />
-      </VForm>
-      <template #actions>
-        <VBtn variant="text" color="secondary" @click="closeOpen = false">انصراف</VBtn>
-        <VBtn color="primary" :loading="closing" @click="submitClose">بستن گام</VBtn>
-      </template>
-    </FormDrawer>
+      <FormDrawer v-model="closeOpen" title="بستن گام" :dirty="dirty" :saving="closing" @submit="submitClose">
+        <VForm ref="formRef" @submit.prevent="submitClose">
+          <VTextarea v-model="closeForm.result" label="نتیجه گام" :rules="[rules.required]" rows="3" class="mb-3" />
+          <VSelect v-model="closeForm.status" :items="Object.entries(statusLabel).map(([value, title]) => ({ title, value }))" label="وضعیت فرصت" class="mb-3" />
+          <VSelect v-model="closeForm.stage_id" :items="stages" label="مرحله قیف" clearable class="mb-3" />
+          <VTextField v-model="closeForm.next_step_title" label="عنوان گام بعدی (اختیاری)" class="mb-3" />
+          <JalaliDateField v-model="closeForm.next_step_due_on" label="مهلت گام بعدی" />
+        </VForm>
+      </FormDrawer>
+    </template>
   </div>
 </template>
 
 <style scoped>
-.steps-workspace { font-family: 'Vazirmatn', Vazirmatn, Tahoma, sans-serif !important; }
-.steps-workspace :deep(*) { font-family: 'Vazirmatn', Vazirmatn, Tahoma, sans-serif !important; }
-.page-title { line-height: 1.4; }
-.crumb-btn { background: none; border: 0; padding: 0; cursor: pointer; font: inherit; color: inherit; }
+.steps-workspace { max-width: 1200px; }
+.page-title { font-size: 1.05rem !important; }
+.crumb-btn { background: none; border: 0; padding: 0; color: inherit; cursor: pointer; }
 .crumb-btn:hover { color: rgb(var(--v-theme-primary)); }
-.hero-step { position: relative; border-radius: 16px; overflow: hidden; border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity)); background: rgb(var(--v-theme-surface)); box-shadow: 0 10px 28px rgba(0,0,0,0.06); }
-.hero-step::before { content: ''; position: absolute; inset-block: 0; inset-inline-start: 0; width: 6px; background: #9e9e9e; }
-.hero-step--danger::before { background: linear-gradient(180deg,#ff5252,#c62828); }
-.hero-step--warn::before { background: linear-gradient(180deg,#ffb74d,#ef6c00); }
-.hero-step--info::before { background: linear-gradient(180deg,#64b5f6,#1565c0); }
-.hero-step--ok::before { background: linear-gradient(180deg,#81c784,#2e7d32); }
-.hero-step--neutral::before { background: linear-gradient(180deg,#bdbdbd,#757575); }
-.hero-step--danger { background: linear-gradient(135deg,rgba(244,67,54,.08),rgb(var(--v-theme-surface)) 55%); }
-.hero-step--warn { background: linear-gradient(135deg,rgba(255,152,0,.1),rgb(var(--v-theme-surface)) 55%); }
-.hero-step--info { background: linear-gradient(135deg,rgba(33,150,243,.08),rgb(var(--v-theme-surface)) 55%); }
-.hero-step--ok { background: linear-gradient(135deg,rgba(76,175,80,.08),rgb(var(--v-theme-surface)) 55%); }
-.hero-step__glow { position: absolute; inset-inline-end: -40px; inset-block-start: -40px; width: 160px; height: 160px; border-radius: 50%; background: radial-gradient(circle,rgba(var(--v-theme-primary),.18),transparent 70%); pointer-events: none; }
-.hero-step__body { position: relative; padding: 1.1rem 1.25rem; }
-.hero-badge { display: inline-flex; padding: .15rem .55rem; border-radius: 999px; font-size: .75rem; background: rgba(var(--v-theme-primary),.12); color: rgb(var(--v-theme-primary)); font-weight: 600; }
-.hero-title { font-size: 1.2rem; font-weight: 700; line-height: 1.45; margin: 0; }
-.deadline-pill { display: inline-flex; padding: .15rem .55rem; border-radius: 999px; font-size: .75rem; font-weight: 600; }
-.deadline-pill--danger { background: rgba(244,67,54,.15); color: #c62828; }
-.deadline-pill--warn { background: rgba(255,152,0,.18); color: #e65100; }
-.deadline-pill--info { background: rgba(33,150,243,.15); color: #1565c0; }
-.deadline-pill--ok { background: rgba(76,175,80,.15); color: #2e7d32; }
-.deadline-pill--neutral { background: rgba(158,158,158,.15); color: #616161; }
-.meta-chip { display: inline-flex; align-items: center; gap: .35rem; padding: .35rem .65rem; border-radius: 10px; background: rgba(var(--v-theme-on-surface),.04); font-size: .875rem; }
-.meta-chip--me { background: rgba(var(--v-theme-primary),.12); color: rgb(var(--v-theme-primary)); font-weight: 600; }
-.gfx-btn { display: flex; align-items: center; gap: .65rem; min-inline-size: 11.5rem; padding: .55rem .75rem; border-radius: 12px; border: 0; cursor: pointer; text-align: start; color: #fff; box-shadow: 0 8px 18px rgba(0,0,0,.12), inset 0 1px 0 rgba(255,255,255,.25); }
-.gfx-btn:disabled { opacity: .55; cursor: not-allowed; }
-.gfx-btn--close { background: linear-gradient(145deg,#42a5f5,#1e88e5 45%,#1565c0); }
-.gfx-btn--delete { background: linear-gradient(145deg,#ef9a9a,#e53935 45%,#b71c1c); }
-.gfx-btn__icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: rgba(255,255,255,.18); }
-.gfx-btn__text { display: flex; flex-direction: column; line-height: 1.2; }
-.gfx-btn__text strong { font-size: .9rem; }
-.gfx-btn__text small { font-size: .7rem; opacity: .9; }
-.main-card,.side-card { border: 1px solid rgba(var(--v-border-color),var(--v-border-opacity)); box-shadow: 0 6px 18px rgba(0,0,0,.04)!important; border-radius: 14px!important; }
-.section-orb { width: 10px; height: 10px; border-radius: 50%; display: inline-block; box-shadow: 0 0 0 4px rgba(var(--v-theme-primary),.12); }
+.main-card { border-radius: 12px !important; }
+.section-orb { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
 .section-orb--primary { background: rgb(var(--v-theme-primary)); }
-.section-orb--secondary { background: #7e57c2; box-shadow: 0 0 0 4px rgba(126,87,194,.15); }
-.activity-item { display: flex; gap: .75rem; padding: .85rem .75rem; border-radius: 12px; margin-block-end: .65rem; background: rgba(var(--v-theme-on-surface),.025); border: 1px solid rgba(var(--v-border-color),var(--v-border-opacity)); }
-.activity-item__bar { width: 4px; border-radius: 4px; background: linear-gradient(180deg,rgb(var(--v-theme-primary)),rgba(var(--v-theme-primary),.3)); flex-shrink: 0; }
-.empty-soft { padding: 1rem; border-radius: 12px; background: rgba(var(--v-theme-on-surface),.03); color: rgba(var(--v-theme-on-surface),var(--v-medium-emphasis-opacity)); font-size: .875rem; }
+.section-orb--secondary { background: rgb(var(--v-theme-secondary)); }
+.section-orb--info { background: rgb(var(--v-theme-info)); }
+.empty-soft { padding: 1rem; border-radius: 10px; background: rgba(var(--v-theme-on-surface), .03); color: rgba(var(--v-theme-on-surface), .55); font-size: .85rem; }
+.activity-item { display: flex; gap: .65rem; padding: .65rem 0; border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity)); }
+.activity-item:last-child { border-bottom: 0; }
+.activity-item__bar { width: 3px; border-radius: 3px; background: rgb(var(--v-theme-primary)); flex-shrink: 0; }
 .steps-table__row { cursor: pointer; }
-.steps-table__row:hover { background: rgba(var(--v-theme-primary),.05); }
-.steps-table__row--active { background: rgba(var(--v-theme-primary),.08); }
-.deadline-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-inline-end: .35rem; vertical-align: middle; }
+.steps-table__row--active { background: rgba(var(--v-theme-primary), .06); }
+.deadline-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-inline-end: .35rem; background: #9e9e9e; }
 .deadline-dot--danger { background: #e53935; }
 .deadline-dot--warn { background: #fb8c00; }
 .deadline-dot--info { background: #1e88e5; }
 .deadline-dot--ok { background: #43a047; }
-.deadline-dot--neutral { background: #9e9e9e; }
 
+.hero-step {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  background: rgb(var(--v-theme-surface));
+}
+.hero-step::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 3px;
+  background: rgba(var(--v-theme-on-surface), .18);
+}
+.hero-step--danger::before { background: rgba(var(--v-theme-error), .65); }
+.hero-step--warn::before { background: rgba(var(--v-theme-warning), .7); }
+.hero-step--info::before { background: rgba(var(--v-theme-info), .55); }
+.hero-step--ok::before { background: rgba(var(--v-theme-success), .5); }
+.hero-step__body { padding: .7rem .85rem; }
+.hero-badge {
+  display: inline-flex;
+  padding: .08rem .4rem;
+  border-radius: 6px;
+  font-size: .68rem;
+  background: rgba(var(--v-theme-primary), .1);
+  color: rgb(var(--v-theme-primary));
+}
+.hero-title {
+  font-size: .95rem !important;
+  font-weight: 500 !important;
+  line-height: 1.35 !important;
+  margin: 0;
+}
+.hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .25rem;
+  line-height: 1.3;
+}
+.hero-meta__dot { opacity: .4; }
+.deadline-pill {
+  display: inline-flex;
+  padding: .08rem .35rem;
+  border-radius: 6px;
+  font-size: .68rem;
+  font-weight: 400;
+  opacity: .85;
+}
+.deadline-pill--danger { background: rgba(var(--v-theme-error), .1); color: rgba(var(--v-theme-error), .8); }
+.deadline-pill--warn { background: rgba(var(--v-theme-warning), .12); color: rgba(var(--v-theme-on-surface), .65); }
+.deadline-pill--info { background: rgba(var(--v-theme-info), .1); color: rgba(var(--v-theme-on-surface), .6); }
+.deadline-pill--ok { background: rgba(var(--v-theme-success), .1); color: rgba(var(--v-theme-on-surface), .55); }
+.deadline-pill--neutral { background: rgba(var(--v-theme-on-surface), .06); color: rgba(var(--v-theme-on-surface), .45); }
 
-
-.compact-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .45rem .75rem; font-size: .8rem; }
-.compact-grid .k { display: block; color: rgba(var(--v-theme-on-surface),var(--v-medium-emphasis-opacity)); font-size: .72rem; }
-.compact-grid .v { font-weight: 600; }
-@media (max-width:600px) { .gfx-btn { min-inline-size: 100%; } .action-stack { width: 100%; } }
+.insight-card {
+  border: 1px solid rgba(var(--v-theme-primary), .16);
+  background: rgb(var(--v-theme-surface));
+  border-radius: 12px !important;
+}
+.insight-alert {
+  display: flex;
+  gap: .45rem;
+  align-items: flex-start;
+  padding: .55rem .65rem;
+  border-radius: 8px;
+  font-size: .8rem;
+  line-height: 1.45;
+}
+.insight-alert--danger { background: rgba(var(--v-theme-error), .1); color: rgb(var(--v-theme-error)); }
+.insight-alert--warn { background: rgba(var(--v-theme-warning), .12); color: rgba(var(--v-theme-on-surface), .8); }
+.insight-alert--ok { background: rgba(var(--v-theme-success), .1); color: rgba(var(--v-theme-on-surface), .75); }
+.insight-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .4rem;
+}
+.insight-metric {
+  min-width: 0;
+  padding: .4rem .5rem;
+  border-radius: 8px;
+  background: rgba(var(--v-theme-on-surface), .04);
+}
+.insight-metric__label {
+  display: block;
+  font-size: .68rem;
+  color: rgba(var(--v-theme-on-surface), .5);
+  margin-bottom: .1rem;
+}
+.insight-metric__value {
+  display: block;
+  font-size: .8rem;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.insight-focus { line-height: 1.35; }
+.insight-action {
+  padding: .65rem .75rem;
+  border-radius: 8px;
+  background: rgba(var(--v-theme-primary), .07);
+  border-inline-start: 3px solid rgb(var(--v-theme-primary));
+}
+.insight-action__label {
+  font-size: .68rem;
+  color: rgba(var(--v-theme-on-surface), .5);
+  margin-bottom: .3rem;
+}
+.insight-action__text {
+  font-size: .85rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
 </style>
