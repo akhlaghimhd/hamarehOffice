@@ -57,18 +57,40 @@ class FoundationSeeder extends Seeder
         }
 
         if (Schema::hasTable('permissions')) {
-            $perm = Permission::query()->updateOrCreate(
-                ['name' => 'dashboard.view'],
-                ['group' => 'general', 'label' => 'مشاهده داشبورد'],
-            );
-            $role = Role::query()->updateOrCreate(
+            $permissionDefs = [
+                ['name' => 'dashboard.view', 'group' => 'general', 'label' => 'مشاهده داشبورد'],
+                ['name' => 'opportunity.view', 'group' => 'marketing', 'label' => 'مشاهده فرصت'],
+                ['name' => 'opportunity.manage', 'group' => 'marketing', 'label' => 'مدیریت فرصت'],
+                ['name' => 'opportunity.step.manage', 'group' => 'marketing', 'label' => 'ویرایش/حذف گام (مدیر)'],
+                ['name' => 'opportunity.activity.create', 'group' => 'marketing', 'label' => 'ثبت فعالیت'],
+            ];
+
+            $permIds = [];
+            foreach ($permissionDefs as $def) {
+                $perm = Permission::query()->updateOrCreate(
+                    ['name' => $def['name']],
+                    ['group' => $def['group'], 'label' => $def['label']],
+                );
+                $permIds[] = $perm->id;
+            }
+
+            $adminRole = Role::query()->updateOrCreate(
                 ['company_id' => $company->id, 'name' => 'admin'],
                 ['label' => 'مدیر شرکت', 'is_system' => true],
             );
-            $role->permissions()->syncWithoutDetaching([$perm->id]);
+            $adminRole->permissions()->sync($permIds);
+
+            $salesPermNames = ['dashboard.view', 'opportunity.view', 'opportunity.activity.create'];
+            $salesIds = Permission::query()->whereIn('name', $salesPermNames)->pluck('id')->all();
+            $salesRole = Role::query()->updateOrCreate(
+                ['company_id' => $company->id, 'name' => 'sales'],
+                ['label' => 'کارشناس فروش', 'is_system' => true],
+            );
+            $salesRole->permissions()->sync($salesIds);
+
             if ($membership && Schema::hasTable('company_user_role')) {
                 DB::table('company_user_role')->updateOrInsert(
-                    ['company_user_id' => $membership->id, 'role_id' => $role->id],
+                    ['company_user_id' => $membership->id, 'role_id' => $adminRole->id],
                     ['created_at' => now(), 'updated_at' => now()],
                 );
             }
@@ -81,7 +103,6 @@ class FoundationSeeder extends Seeder
             );
         }
 
-        // قیف فروش مطابق سیستم قبلی
         if (Schema::hasTable('opportunity_stages')) {
             $stages = [
                 ['code' => 'initial_lead', 'name' => 'سرنخ اولیه', 'sort_order' => 10],
