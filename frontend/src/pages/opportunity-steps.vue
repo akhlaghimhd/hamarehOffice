@@ -4,7 +4,12 @@ import FormDrawer from '@/components/forms/FormDrawer.vue'
 import JalaliDateField from '@/components/forms/JalaliDateField.vue'
 import { useNotify } from '@/composables/useNotify'
 import { useOpportunityInsight } from '@/composables/useOpportunityInsight'
-import { $api } from '@/utils/api'
+import {
+  api,
+  fetchOpportunity,
+  fetchOpportunityStages,
+  getUser,
+} from '@/utils/api'
 import { formatJalaliFa, toFaDigits } from '@/utils/fa'
 import { activityVisual, stageVisual } from '@/utils/opportunityVisuals'
 
@@ -71,13 +76,27 @@ const priorityItems = [
 ]
 
 const currentUserId = computed(() => {
-  try {
-    const u = JSON.parse(localStorage.getItem('user') || '{}')
-    return Number(u?.id || 0)
-  } catch { return 0 }
+  const u = getUser<{ id?: number }>()
+  return Number(u?.id || 0)
 })
 
 const isOwner = computed(() => item.value && currentUserId.value && Number(item.value.owner?.id) === currentUserId.value)
+const isReferredAway = computed(() => {
+  if (!item.value) return false
+  const ownerId = Number(item.value.owner?.id || 0)
+  const assigneeId = Number(item.value.assignee?.id || ownerId)
+  return Boolean(ownerId && assigneeId && ownerId !== assigneeId)
+})
+const canMutateStep = computed(() => {
+  if (!isViewingOpen.value) return false
+  if (isReferredAway.value) {
+    if (isOwner.value) return false
+    const stepAssignee = Number(currentStep.value?.assignee?.id || item.value?.assignee?.id || 0)
+    return stepAssignee > 0 && stepAssignee === currentUserId.value
+  }
+  return true
+})
+const canAssign = computed(() => isOwner.value && !isReferredAway.value)
 const currentStep = computed(() => (item.value?.steps || []).find((s: any) => s.is_current) || null)
 const isViewingOpen = computed(() => currentStep.value && currentStep.value.status !== 'closed')
 const historySteps = computed(() => (item.value?.steps || []).filter((s: any) => !s.is_current))
@@ -90,14 +109,19 @@ const currentActivities = computed(() => {
 })
 
 const stageTone = computed(() => stageVisual(item.value?.stage?.code || item.value?.stage?.name))
-const { serverInsight, loadInsight } = useOpportunityInsight()
+const { insight: serverInsight, loadInsight } = useOpportunityInsight(() => id.value)
 const smartInsight = computed(() => {
   if (!item.value) return null
   if (serverInsight.value && (serverInsight.value.source === 'llm' || serverInsight.value.bullets?.length)) {
     const bullets = (serverInsight.value.bullets && serverInsight.value.bullets.length)
       ? serverInsight.value.bullets
-      : [serverInsight.value.suggestion || 'تحلیل مدل آماده است']
-    return { source: 'llm' as const, bullets, suggestion: serverInsight.value.suggestion }
+      : [serverInsight.value.suggestion || 'تحلیل آماده است']
+    return {
+      source: 'local' as const,
+      tone: (serverInsight.value as any).score_tone || 'ok',
+      bullets,
+      suggestion: serverInsight.value.suggestion,
+    }
   }
   const openSteps = (item.value.steps || []).filter((s: any) => s.status !== 'closed').length
   const acts = (item.value.activities || []).length
@@ -114,13 +138,6 @@ const smartInsight = computed(() => {
     source: 'local' as const,
     tone: bullets.some(b => b.includes('گذشته')) ? 'danger' : bullets.some(b => b.includes('نزدیک')) ? 'warn' : 'ok',
     bullets,
-    metrics: {
-      status: item.value.status === 'active' ? 'فعال' : item.value.status,
-      stage: item.value.stage?.name || '—',
-      openSteps: String(openSteps),
-      activities: String(acts),
-      current: currentStep.value?.title || '—',
-    },
   }
 })
 
@@ -153,31 +170,40 @@ const currentDeadline = computed(() => {
   return { tone: 'ok', label: `${toFaDigits(days)} روز` }
 })
 
-function goBack() {
-  const from = String(route.query.from || '')
-  if (from === 'list') router.push({ name: 'opportunities' })
-  else if (from === 'detail' || from === 'activity') router.push({ name: 'opportunity-detail', params: { id: id.value } })
-  else if (window.history.length > 1) router.back()
-  else router.push({ name: 'opportunities' })
+function navRoot(): 'list' | 'detail' {
+  const r = String(route.query.root || route.query.from || 'list')
+  if (r === 'detail' || r === 'activity') return 'detail'
+  return 'list'
 }
-function goDashboard() { router.push({ name: 'dashboard' }) }
-function goList() { router.push({ name: 'opportunities' }) }
+function goBack() {
+  if (navRoot() === 'detail') {
+    router.push('/opportunities/' + id.value)
+    return
+  }
+  router.push('/opportunities')
+}
+function goDashboard() { router.push('/dashboard') }
+function goList() { router.push('/opportunities') }
 function goActivityCreate() {
-  router.push({ name: 'opportunity-activity-create', params: { id: id.value }, query: { from: 'steps' } })
+  router.push({
+    path: '/opportunities/' + id.value + '/activities/new',
+    query: { from: 'steps', root: navRoot() },
+  })
 }
 
 async function load() {
   loading.value = true
   try {
     const [detail, st, us] = await Promise.all([
-      $api(`/opportunities/${id.value}`),
-      $api('/opportunities/stages'),
-      $api('/users').catch(() => ({ data: [] })),
+      fetchOpportunity(id.value),
+      fetchOpportunityStages(),
+      api<{ data: any[] }>('/api/users').catch(() => ({ data: [] as any[] })),
     ])
     item.value = detail.data
     stages.value = st.data || []
-    users.value = (us.data || us || []).map((u: any) => ({ title: u.name, value: u.id }))
-    loadInsight(id.value)
+    const list = (us as any)?.data || us || []
+    users.value = (Array.isArray(list) ? list : []).map((u: any) => ({ title: u.name, value: u.id }))
+    loadInsight()
   }
   catch (e: any) { notifyError(e?.message || 'بارگذاری ناموفق') }
   finally { loading.value = false }
@@ -213,9 +239,9 @@ async function submitClose() {
   }
   actionSaving.value = true
   try {
-    const res = await $api(`/opportunities/${id.value}/close-step`, {
+    const res = await api<{ data: any }>(`/api/opportunities/${id.value}/close-step`, {
       method: 'POST',
-      body: {
+      body: JSON.stringify({
         result: closeForm.value.result,
         stage_id: closeForm.value.stage_id,
         status: closeForm.value.status,
@@ -223,7 +249,7 @@ async function submitClose() {
         next_step_due_on: closeForm.value.next_step_due_on,
         assignee_user_id: closeForm.value.assignee_user_id,
         return_to_owner: closeForm.value.return_to_owner,
-      },
+      }),
     })
     item.value = res.data
     closeOpen.value = false
@@ -244,15 +270,15 @@ async function submitAssign() {
   }
   actionSaving.value = true
   try {
-    const res = await $api(`/opportunities/${id.value}/assign`, {
+    const res = await api<{ data: any }>(`/api/opportunities/${id.value}/assign`, {
       method: 'POST',
-      body: {
+      body: JSON.stringify({
         to_user_id: assignForm.value.to_user_id,
         step_title: assignForm.value.step_title,
         step_due_on: assignForm.value.step_due_on,
         priority: assignForm.value.priority,
         note: assignForm.value.note || null,
-      },
+      }),
     })
     item.value = res.data
     assignOpen.value = false
@@ -326,7 +352,7 @@ onMounted(load)
                 </div>
                 <div class="d-flex flex-wrap gap-2 flex-shrink-0">
                   <VBtn
-                    v-if="isViewingOpen"
+                    v-if="canMutateStep"
                     color="primary"
                     size="small"
                     @click="openClose"
@@ -344,7 +370,7 @@ onMounted(load)
               <div class="d-flex align-center justify-space-between gap-2 mb-2">
                 <div class="text-subtitle-2 font-weight-medium">فعالیت‌های گام جاری</div>
                 <VBtn
-                  v-if="isViewingOpen"
+                  v-if="canMutateStep"
                   size="small"
                   color="primary"
                   variant="tonal"
@@ -434,22 +460,24 @@ onMounted(load)
                     <div class="min-w-0">
                       <div class="text-body-2 font-weight-medium text-truncate">{{ s.title }}</div>
                       <div class="text-caption text-medium-emphasis">
-                        بسته · {{ formatJalaliFa(s.closed_at) || '—' }} · {{ toFaDigits(activitiesOfStep(s.id).length) }} فعالیت
+                        {{ s.status === 'closed' ? (formatJalaliFa(s.closed_at) || 'بسته') : '—' }}
+                        · {{ toFaDigits(activitiesOfStep(s.id).length) }} فعالیت
                       </div>
                     </div>
                     <VIcon :icon="isExpanded(s.id) ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'" size="18" />
                   </div>
-                  <div v-if="isExpanded(s.id)" class="mt-2">
-                    <div v-if="s.result" class="text-caption mb-1">نتیجه: {{ s.result }}</div>
+                  <div v-if="isExpanded(s.id)" class="mt-2" @click.stop>
+                    <div v-if="s.result" class="text-caption text-medium-emphasis mb-2">نتیجه: {{ s.result }}</div>
                     <button
                       v-for="a in activitiesOfStep(s.id)"
                       :key="a.id"
                       type="button"
                       class="expand-act"
-                      @click.stop="openActivityDetail(a)"
+                      @click="openActivityDetail(a)"
                     >
                       <VIcon :icon="activityVisual(a.type).icon" size="14" />
                       <span class="text-truncate">{{ typeLabel[a.type] || a.subject || a.type }}</span>
+                      <span class="text-caption text-medium-emphasis">{{ formatJalaliFa(a.happened_at || a.created_at) }}</span>
                     </button>
                   </div>
                 </div>
@@ -460,27 +488,12 @@ onMounted(load)
           <VCard v-if="referrals.length" class="mb-2 main-card">
             <VCardText class="pa-2 pa-sm-3">
               <div class="text-subtitle-2 font-weight-medium mb-2">گردش و ارجاع فرصت</div>
-              <div class="d-none d-md-block table-wrap">
-                <table class="steps-table">
-                  <thead>
-                    <tr><th>از</th><th>به</th><th>ماموریت</th><th>اولویت</th><th>تاریخ</th></tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="r in referrals" :key="r.id">
-                      <td class="text-body-2">{{ r.from_user?.name || '—' }}</td>
-                      <td class="text-body-2">{{ r.to_user?.name || '—' }}</td>
-                      <td class="text-body-2">{{ r.step_title || '—' }}</td>
-                      <td class="text-caption">{{ priorityLabel[r.priority] || r.priority || '—' }}</td>
-                      <td class="text-caption">{{ formatJalaliFa(r.created_at) }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-              <div class="d-md-none d-flex flex-column gap-2">
-                <div v-for="r in referrals" :key="r.id" class="step-card step-card--static">
-                  <div class="text-body-2 font-weight-medium">{{ r.from_user?.name || '—' }} → {{ r.to_user?.name || '—' }}</div>
-                  <div class="text-caption text-medium-emphasis">{{ r.step_title || '—' }}</div>
-                  <div class="text-caption">{{ formatJalaliFa(r.created_at) }} · {{ priorityLabel[r.priority] || '' }}</div>
+              <div class="d-flex flex-column gap-1">
+                <div v-for="r in referrals" :key="r.id" class="text-caption d-flex flex-wrap gap-1 align-center">
+                  <VIcon icon="ri-share-forward-line" size="14" />
+                  <span>{{ r.from_user?.name || '—' }} → {{ r.to_user?.name || '—' }}</span>
+                  <span class="text-medium-emphasis">{{ formatJalaliFa(r.created_at) }}</span>
+                  <span v-if="r.note" class="text-medium-emphasis">· {{ r.note }}</span>
                 </div>
               </div>
             </VCardText>
@@ -495,9 +508,12 @@ onMounted(load)
                   <VIcon icon="ri-pulse-line" size="16" />
                   وضعیت و برآیند
                 </div>
-                <VChip size="x-small" :color="smartInsight.tone === 'danger' ? 'error' : smartInsight.tone === 'warn' ? 'warning' : 'success'" variant="tonal">
-                  <template v-if="smartInsight.source === 'llm'">تحلیل با مدل زبانی</template>
-                  <template v-else>تحلیل محلی</template>
+                <VChip
+                  size="x-small"
+                  :color="smartInsight.tone === 'danger' ? 'error' : smartInsight.tone === 'warn' ? 'warning' : 'success'"
+                  variant="tonal"
+                >
+                  {{ smartInsight.tone === 'danger' ? 'نیازمند توجه' : smartInsight.tone === 'warn' ? 'نزدیک مهلت' : 'پایدار' }}
                 </VChip>
               </div>
               <div
@@ -509,42 +525,65 @@ onMounted(load)
                 <VIcon icon="ri-information-line" size="16" class="flex-shrink-0 mt-1" />
                 <span>{{ b }}</span>
               </div>
-              <div v-if="smartInsight.metrics" class="insight-metrics">
-                <div class="insight-metric">
-                  <span class="insight-metric__label">وضعیت</span>
-                  <span class="insight-metric__value">{{ smartInsight.metrics.status }}</span>
-                </div>
-                <div class="insight-metric">
-                  <span class="insight-metric__label">مرحله قیف</span>
-                  <span class="insight-metric__value">{{ smartInsight.metrics.stage }}</span>
-                </div>
-                <div class="insight-metric">
-                  <span class="insight-metric__label">گام باز</span>
-                  <span class="insight-metric__value">{{ toFaDigits(smartInsight.metrics.openSteps) }}</span>
-                </div>
-                <div class="insight-metric">
-                  <span class="insight-metric__label">فعالیت</span>
-                  <span class="insight-metric__value">{{ toFaDigits(smartInsight.metrics.activities) }}</span>
-                </div>
-              </div>
-              <div v-if="smartInsight.metrics?.current" class="text-caption text-medium-emphasis mt-2">
-                گام جاری: {{ smartInsight.metrics.current }}
-              </div>
             </VCardText>
           </VCard>
 
-          <VCard class="mb-2 main-card">
+          <VCard class="mb-2 main-card meta-card">
             <VCardText class="pa-2 pa-sm-3">
-              <div class="text-subtitle-2 font-weight-medium mb-2">خلاصه فرصت</div>
-              <div class="text-body-2 mb-1">طرف: {{ item.organization_name }}</div>
-              <div class="text-body-2 mb-1">مالک: {{ item.owner?.name || '—' }}</div>
-              <div class="text-body-2 mb-1">مسئول فعلی: {{ item.assignee?.name || item.owner?.name || '—' }}</div>
-              <div class="text-body-2 mb-1">وضعیت: {{ item.status === 'active' ? 'فعال' : item.status }}</div>
-              <div class="text-body-2">مرحله قیف: {{ item.stage?.name || '—' }}</div>
+              <div class="d-flex align-center justify-space-between gap-2 mb-2">
+                <div class="text-subtitle-2 font-weight-medium">خلاصه فرصت</div>
+                <VChip v-if="isReferredAway" size="x-small" color="warning" variant="tonal">در ارجاع</VChip>
+              </div>
+              <div class="meta-grid">
+                <div class="meta-item">
+                  <VIcon icon="ri-building-2-line" size="16" class="meta-item__icon" />
+                  <div class="min-w-0">
+                    <div class="meta-item__label">طرف</div>
+                    <div class="meta-item__value text-truncate">{{ item.organization_name }}</div>
+                  </div>
+                </div>
+                <div class="meta-item">
+                  <VIcon icon="ri-user-star-line" size="16" class="meta-item__icon" />
+                  <div class="min-w-0">
+                    <div class="meta-item__label">مالک</div>
+                    <div class="meta-item__value text-truncate">{{ item.owner?.name || '—' }}</div>
+                  </div>
+                </div>
+                <div class="meta-item">
+                  <VIcon icon="ri-user-shared-line" size="16" class="meta-item__icon" />
+                  <div class="min-w-0">
+                    <div class="meta-item__label">مسئول فعلی</div>
+                    <div class="meta-item__value text-truncate">{{ item.assignee?.name || item.owner?.name || '—' }}</div>
+                  </div>
+                </div>
+                <div class="meta-item">
+                  <VIcon icon="ri-flag-line" size="16" class="meta-item__icon" />
+                  <div class="min-w-0">
+                    <div class="meta-item__label">وضعیت</div>
+                    <div class="meta-item__value">{{ item.status === 'active' ? 'فعال' : item.status }}</div>
+                  </div>
+                </div>
+                <div class="meta-item meta-item--full">
+                  <VIcon icon="ri-filter-3-line" size="16" class="meta-item__icon" />
+                  <div class="min-w-0">
+                    <div class="meta-item__label">مرحله قیف</div>
+                    <div class="meta-item__value text-truncate">{{ item.stage?.name || '—' }}</div>
+                  </div>
+                </div>
+              </div>
+              <VAlert
+                v-if="isReferredAway && isOwner"
+                type="warning"
+                variant="tonal"
+                density="compact"
+                class="mt-2 mb-0 text-caption"
+              >
+                فرصت در اختیار «{{ item.assignee?.name }}» است. تا بازگشت، ثبت فعالیت و گام جدید برای شما قفل است.
+              </VAlert>
             </VCardText>
           </VCard>
 
-          <VBtn block color="secondary" variant="tonal" class="mb-2" @click="openAssign">
+          <VBtn v-if="canAssign" block color="secondary" variant="tonal" class="mb-2" @click="openAssign">
             <VIcon start icon="ri-share-forward-line" size="16" />
             ارجاع فرصت
           </VBtn>
@@ -582,7 +621,7 @@ onMounted(load)
       />
 
       <template v-if="isOwner">
-        <div class="form-section-label mb-1">گام بعدی (اختیاری — فقط مالک)</div>
+        <div class="form-section-label mb-1">گام بعدی (اختیاری)</div>
         <VTextField v-model="closeForm.next_step_title" label="عنوان گام بعدی" density="compact" class="mb-2" hide-details="auto" />
         <JalaliDateField v-model="closeForm.next_step_due_on" label="مهلت گام بعدی" density="compact" class="mb-2" />
         <VSelect
@@ -591,12 +630,11 @@ onMounted(load)
           label="مسئول گام بعدی"
           density="compact"
           class="mb-2"
-          clearable
           hide-details="auto"
         />
       </template>
       <template v-else>
-        <VAlert type="info" variant="tonal" density="compact" class="mb-2">
+        <VAlert type="info" variant="tonal" density="compact" class="mb-2 text-caption">
           با بستن این ماموریت، فرصت به مالک برمی‌گردد.
         </VAlert>
       </template>
@@ -647,45 +685,69 @@ onMounted(load)
   </FormDrawer>
 
   <VDialog v-model="activityDetailOpen" max-width="520" scrollable>
-    <VCard v-if="activityDetail">
-      <VCardTitle class="text-body-1">{{ typeLabel[activityDetail.type] || activityDetail.subject || 'جزئیات فعالیت' }}</VCardTitle>
-      <VCardSubtitle>{{ formatJalaliFa(activityDetail.happened_at || activityDetail.created_at) }}</VCardSubtitle>
-      <VCardText>
-        <div class="text-body-2 text-wrap" style="white-space: pre-wrap">{{ activityDetail.body || '—' }}</div>
+    <VCard v-if="activityDetail" class="act-detail-card">
+      <div class="act-detail-head" :style="{ borderColor: activityBarColor(activityDetail.type) }">
+        <div class="d-flex align-center gap-2">
+          <span class="act-detail-icon" :style="{ background: activityBarColor(activityDetail.type) }">
+            <VIcon :icon="activityVisual(activityDetail.type).icon" size="18" color="white" />
+          </span>
+          <div class="min-w-0">
+            <div class="text-subtitle-2 font-weight-medium text-truncate">
+              {{ typeLabel[activityDetail.type] || activityDetail.type }}
+            </div>
+            <div class="text-caption text-medium-emphasis">
+              {{ formatJalaliFa(activityDetail.happened_at || activityDetail.created_at) }}
+            </div>
+          </div>
+        </div>
+        <VBtn icon variant="text" size="small" @click="activityDetailOpen = false">
+          <VIcon icon="ri-close-line" />
+        </VBtn>
+      </div>
+      <VCardText class="pa-3">
+        <div v-if="activityDetail.subject" class="act-detail-subject mb-3">{{ activityDetail.subject }}</div>
+        <div class="act-detail-section">
+          <div class="act-detail-label">شرح / نتیجه</div>
+          <div class="act-detail-body">{{ activityDetail.body || activityDetail.result || 'بدون توضیح' }}</div>
+        </div>
+        <div v-if="activityDetail.outcome || activityDetail.reaction" class="act-detail-section mt-3">
+          <div class="act-detail-label">واکنش</div>
+          <div class="act-detail-body">{{ activityDetail.outcome || activityDetail.reaction }}</div>
+        </div>
+        <div class="act-detail-meta mt-3">
+          <VChip v-if="activityDetail.created_by?.name || activityDetail.user?.name" size="small" variant="tonal" color="secondary">
+            <VIcon start icon="ri-user-line" size="14" />
+            {{ activityDetail.created_by?.name || activityDetail.user?.name }}
+          </VChip>
+        </div>
       </VCardText>
-      <VCardActions>
+      <VCardActions class="px-3 pb-3">
         <VSpacer />
-        <VBtn variant="text" @click="activityDetailOpen = false">بستن</VBtn>
+        <VBtn color="primary" variant="tonal" @click="activityDetailOpen = false">بستن</VBtn>
       </VCardActions>
     </VCard>
   </VDialog>
 </template>
 
 <style scoped>
-.steps-workspace{
-  max-width:1200px;
-  width:100%;
-  overflow-x:hidden;
-  padding-bottom:.5rem;
-}
-.page-title{font-size:1.05rem!important;line-height:1.35!important;font-weight:500!important}
-.crumb-btn{border:0;background:transparent;color:inherit;cursor:pointer;padding:0;font:inherit}
+.steps-workspace{max-width:1100px;margin-inline:auto}
+.page-title{font-size:1.05rem!important}
+.crumb-btn{background:none;border:0;padding:0;cursor:pointer;color:inherit;font:inherit}
 .crumb-btn:hover{color:rgb(var(--v-theme-primary))}
 .main-card{border-radius:12px!important}
-.table-wrap{width:100%;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}
-.steps-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:.8125rem}
-.steps-table th{padding:.35rem .35rem;font-weight:500;color:rgba(var(--v-theme-on-surface),.55);border-bottom:1px solid rgba(var(--v-border-color),var(--v-border-opacity));text-align:start;white-space:nowrap}
-.steps-table td{padding:.4rem .35rem;border-bottom:1px solid rgba(var(--v-border-color),var(--v-border-opacity));vertical-align:middle;overflow:hidden;text-overflow:ellipsis}
+.table-wrap{overflow-x:auto}
+.steps-table{width:100%;border-collapse:collapse;font-size:.8rem}
+.steps-table th{text-align:start;padding:.35rem .4rem;color:rgba(var(--v-theme-on-surface),.55);font-weight:500;border-bottom:1px solid rgba(var(--v-theme-on-surface),.08)}
+.steps-table td{padding:.4rem;border-bottom:1px solid rgba(var(--v-theme-on-surface),.06);vertical-align:middle}
 .steps-table__row{cursor:pointer}
 .steps-table__row:hover{background:rgba(var(--v-theme-on-surface),.03)}
-.steps-table__expand td{background:rgba(var(--v-theme-on-surface),.02);padding:.5rem .5rem .6rem}
-.expand-act{display:flex;align-items:center;gap:.35rem;width:100%;border:0;border-radius:8px;padding:.35rem .45rem;margin-block:.15rem;background:rgba(var(--v-theme-on-surface),.03);cursor:pointer;text-align:start;color:inherit;font:inherit}
-.expand-act:hover{background:rgba(var(--v-theme-primary),.08)}
-.step-card{border:1px solid rgba(var(--v-border-color),var(--v-border-opacity));border-radius:10px;padding:.6rem .7rem;cursor:pointer;background:rgb(var(--v-theme-surface))}
-.step-card--static{cursor:default}
-.hero-step{position:relative;border-radius:12px;overflow:hidden;border:1px solid rgba(var(--v-border-color),var(--v-border-opacity));background:rgb(var(--v-theme-surface))}
-.hero-step::before{content:'';position:absolute;inset-block:0;inset-inline-start:0;width:3px;background:rgba(var(--v-theme-on-surface),.18)}
-.hero-step--danger::before{background:rgba(var(--v-theme-error),.65)}
+.steps-table__expand td{background:rgba(var(--v-theme-on-surface),.02)}
+.step-card{padding:.55rem .65rem;border-radius:10px;border:1px solid rgba(var(--v-theme-on-surface),.08);cursor:pointer}
+.expand-act{display:flex;align-items:center;gap:.4rem;width:100%;text-align:start;padding:.35rem .45rem;border:0;border-radius:8px;background:transparent;cursor:pointer;font:inherit;color:inherit}
+.expand-act:hover{background:rgba(var(--v-theme-on-surface),.04)}
+.hero-step{border-radius:12px;border:1px solid rgba(var(--v-theme-on-surface),.08);background:rgb(var(--v-theme-surface));position:relative;overflow:hidden}
+.hero-step::before{content:'';position:absolute;inset-block:0;inset-inline-start:0;width:3px;background:rgba(var(--v-theme-primary),.55)}
+.hero-step--danger::before{background:rgba(var(--v-theme-error),.7)}
 .hero-step--warn::before{background:rgba(var(--v-theme-warning),.7)}
 .hero-step__body{padding:.55rem .7rem}
 .hero-badge{display:inline-flex;padding:.06rem .35rem;border-radius:6px;font-size:.65rem;background:rgba(var(--v-theme-primary),.1);color:rgb(var(--v-theme-primary))}
@@ -700,14 +762,22 @@ onMounted(load)
 .insight-alert{display:flex;gap:.4rem;align-items:flex-start;padding:.45rem .55rem;border-radius:8px;font-size:.78rem;line-height:1.4}
 .insight-alert--danger{background:rgba(var(--v-theme-error),.1);color:rgb(var(--v-theme-error))}
 .insight-alert--warn{background:rgba(var(--v-theme-warning),.12);color:rgba(var(--v-theme-on-surface),.8)}
-.insight-metrics{display:grid;grid-template-columns:1fr 1fr;gap:.35rem}
-.insight-metric{min-width:0;padding:.35rem .45rem;border-radius:8px;background:rgba(var(--v-theme-on-surface),.04)}
-.insight-metric__label{display:block;font-size:.65rem;color:rgba(var(--v-theme-on-surface),.5);margin-bottom:.05rem}
-.insight-metric__value{display:block;font-size:.78rem;line-height:1.25;overflow-wrap:anywhere}
 .form-section-label{font-size:.78rem;font-weight:500;margin-bottom:.15rem}
 .empty-soft{font-size:.8rem;color:rgba(var(--v-theme-on-surface),.5);padding:.35rem 0}
-
-/* جلوگیری از اسکرول افقی و اسکرول تو‌در‌تو در این صفحه */
+.meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:.45rem}
+.meta-item{display:flex;gap:.45rem;align-items:flex-start;padding:.4rem .5rem;border-radius:10px;background:rgba(var(--v-theme-on-surface),.035)}
+.meta-item--full{grid-column:1 / -1}
+.meta-item__icon{opacity:.55;margin-top:.1rem;flex-shrink:0}
+.meta-item__label{font-size:.65rem;color:rgba(var(--v-theme-on-surface),.5);line-height:1.2}
+.meta-item__value{font-size:.8rem;line-height:1.3;font-weight:500}
+.act-detail-card{overflow:hidden}
+.act-detail-head{display:flex;align-items:center;justify-content:space-between;gap:.5rem;padding:.75rem 1rem;border-bottom:1px solid rgba(var(--v-theme-on-surface),.08);border-top:3px solid}
+.act-detail-icon{width:32px;height:32px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.act-detail-subject{font-size:.9rem;font-weight:500;line-height:1.4}
+.act-detail-section{padding:.55rem .65rem;border-radius:10px;background:rgba(var(--v-theme-on-surface),.04)}
+.act-detail-label{font-size:.68rem;color:rgba(var(--v-theme-on-surface),.5);margin-bottom:.2rem}
+.act-detail-body{font-size:.85rem;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
+.act-detail-meta{display:flex;flex-wrap:wrap;gap:.35rem}
 :deep(.v-row){margin:0!important}
 :deep(.v-col){padding-block:.35rem!important;padding-inline:.35rem!important}
 :deep(.v-card){overflow:visible}
