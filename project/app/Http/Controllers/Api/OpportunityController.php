@@ -6,9 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Opportunity;
 use App\Models\OpportunityStage;
 use App\Models\OpportunityStep;
-use App\Support\CompanyContext;
 use App\Services\OpportunityInsightService;
 use App\Services\OpportunityService;
+use App\Support\CompanyContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -16,7 +16,7 @@ class OpportunityController extends Controller
 {
     public function __construct(
         private OpportunityService $service,
-        private OpportunityInsightService $insightService,
+        private OpportunityInsightService $insight,
     ) {}
 
     public function index(Request $request, CompanyContext $context): JsonResponse
@@ -33,17 +33,24 @@ class OpportunityController extends Controller
         if ($stageId = $request->query('stage_id')) {
             $q->where('stage_id', $stageId);
         }
-        if ($search = $request->query('q')) {
+        if ($search = trim((string) $request->query('q', ''))) {
             $q->where(function ($qq) use ($search) {
                 $qq->where('organization_name', 'like', "%{$search}%")
                     ->orWhere('code', 'like', "%{$search}%")
-                    ->orWhere('contact_name', 'like', "%{$search}%");
+                    ->orWhere('title', 'like', "%{$search}%");
             });
         }
 
-        $items = $q->orderByDesc('id')->limit(100)->get()->map(fn (Opportunity $o) => $this->listItem($o));
+        $items = $q->orderByDesc('id')->paginate(min(50, max(10, (int) $request->query('per_page', 20))));
 
-        return response()->json(['data' => $items]);
+        return response()->json([
+            'data' => collect($items->items())->map(fn (Opportunity $o) => $this->listItem($o))->values(),
+            'meta' => [
+                'current_page' => $items->currentPage(),
+                'last_page' => $items->lastPage(),
+                'total' => $items->total(),
+            ],
+        ]);
     }
 
     public function store(Request $request, CompanyContext $context): JsonResponse
@@ -52,21 +59,18 @@ class OpportunityController extends Controller
 
         $data = $request->validate([
             'organization_name' => ['required', 'string', 'max:255'],
-            'products' => ['nullable', 'array'],
-            'products.*' => ['string', 'max:255'],
-            'product_name' => ['nullable', 'string', 'max:255'],
-            'contact_name' => ['nullable', 'string', 'max:255'],
-            'next_step' => ['required', 'string', 'max:500'],
-            'next_step_due_on' => ['nullable', 'date'],
+            'title' => ['nullable', 'string', 'max:255'],
+            'need_summary' => ['nullable', 'string'],
             'stage_id' => ['nullable', 'integer'],
-            'status' => ['nullable', 'in:active,nurturing,paused,won,lost'],
-            'opening_note' => ['nullable', 'string'],
             'assignee_user_id' => ['nullable', 'integer'],
+            'next_step_title' => ['nullable', 'string', 'max:500'],
+            'next_step_due_on' => ['nullable', 'date'],
+            'priority' => ['nullable', 'string', 'in:low,normal,high,urgent'],
         ]);
 
         $opp = $this->service->createQuick($companyId, $request->user()->id, $data);
 
-        return response()->json(['data' => $this->listItem($opp)], 201);
+        return response()->json(['data' => $this->detail($opp)], 201);
     }
 
     public function show(int $id, CompanyContext $context): JsonResponse
@@ -74,6 +78,7 @@ class OpportunityController extends Controller
         $companyId = $context->check();
 
         $opp = Opportunity::query()
+            ->where('company_id', $companyId)
             ->with([
                 'stage',
                 'owner:id,name',
@@ -82,7 +87,6 @@ class OpportunityController extends Controller
                 'activities' => fn ($q) => $q->orderByDesc('id')->limit(50),
                 'referrals' => fn ($q) => $q->orderByDesc('id')->limit(30)->with(['fromUser:id,name', 'toUser:id,name']),
             ])
-            ->where('company_id', $companyId)
             ->findOrFail($id);
 
         return response()->json(['data' => $this->detail($opp)]);
@@ -92,20 +96,12 @@ class OpportunityController extends Controller
     {
         $companyId = $context->check();
 
-        try {
-            $opp = Opportunity::query()
-                ->with([
-                    'stage:id,name,code',
-                    'steps' => fn ($q) => $q->orderBy('sort_order'),
-                    'activities' => fn ($q) => $q->orderByDesc('id')->limit(30),
-                ])
-                ->where('company_id', $companyId)
-                ->findOrFail($id);
+        $opp = Opportunity::query()
+            ->where('company_id', $companyId)
+            ->with(['stage', 'steps', 'activities'])
+            ->findOrFail($id);
 
-            return response()->json(['data' => $this->insightService->forOpportunity($opp)]);
-        } catch (\Throwable $e) {
-            return response()->json(['data' => ['source' => 'local', 'llm_error' => true, 'message' => $e->getMessage()]], 200);
-        }
+        return response()->json(['data' => $this->insight->forOpportunity($opp)]);
     }
 
     public function update(Request $request, int $id, CompanyContext $context): JsonResponse
@@ -114,23 +110,22 @@ class OpportunityController extends Controller
 
         $data = $request->validate([
             'organization_name' => ['sometimes', 'string', 'max:255'],
-            'products' => ['nullable', 'array'],
-            'products.*' => ['string', 'max:255'],
-            'contact_name' => ['nullable', 'string', 'max:255'],
-            'contact_role' => ['nullable', 'string', 'max:255'],
-            'contact_mobile' => ['nullable', 'string', 'max:50'],
-            'contact_phone' => ['nullable', 'string', 'max:50'],
-            'contact_email' => ['nullable', 'email', 'max:255'],
-            'next_step' => ['nullable', 'string', 'max:500'],
-            'next_step_due_on' => ['nullable', 'date'],
-            'status' => ['nullable', 'in:active,nurturing,paused,won,lost'],
+            'title' => ['nullable', 'string', 'max:255'],
+            'need_summary' => ['nullable', 'string'],
             'stage_id' => ['nullable', 'integer'],
+            'status' => ['nullable', 'in:active,nurturing,paused,won,lost'],
+            'priority' => ['nullable', 'string', 'in:low,normal,high,urgent'],
         ]);
 
         $opp = Opportunity::query()->where('company_id', $companyId)->findOrFail($id);
         $opp = $this->service->updateBasic($opp, $data);
 
-        return response()->json(['data' => $this->listItem($opp)]);
+        return response()->json(['data' => $this->detail($opp->load([
+            'stage', 'owner:id,name', 'assignee:id,name',
+            'steps' => fn ($q) => $q->orderBy('sort_order')->with('assignee:id,name'),
+            'activities' => fn ($q) => $q->orderByDesc('id')->limit(50),
+            'referrals' => fn ($q) => $q->orderByDesc('id')->limit(30)->with(['fromUser:id,name', 'toUser:id,name']),
+        ]))]);
     }
 
     public function closeStep(Request $request, int $id, CompanyContext $context): JsonResponse
@@ -160,6 +155,15 @@ class OpportunityController extends Controller
         if (! $isOwner && ! empty($data['next_step_title'])) {
             return response()->json([
                 'message' => 'تعریف گام جدید فقط برای مالک فرصت مجاز است.',
+            ], 403);
+        }
+
+        $assigneeId = (int) ($opp->assigned_to_user_id ?? $opp->owner_user_id);
+        $isReferredAway = $assigneeId > 0 && $assigneeId !== (int) $opp->owner_user_id;
+
+        if ($isOwner && $isReferredAway) {
+            return response()->json([
+                'message' => 'فرصت در ارجاع است. تا بازگشت، بستن گام / تعریف گام جدید برای مالک مجاز نیست.',
             ], 403);
         }
 
@@ -194,21 +198,31 @@ class OpportunityController extends Controller
         $companyId = $context->check();
 
         $data = $request->validate([
-            'subject' => ['nullable', 'string', 'max:255'],
-            'body' => ['required', 'string', 'max:5000'],
-            'type' => ['nullable', 'string', 'max:50'],
-            'result' => ['nullable', 'string', 'max:2000'],
+            'type' => ['required', 'string', 'max:50'],
+            'subject' => ['nullable', 'string', 'max:500'],
+            'body' => ['nullable', 'string'],
+            'result' => ['nullable', 'string'],
             'happened_at' => ['nullable', 'date'],
             'step_id' => ['nullable', 'integer'],
         ]);
 
         $opp = Opportunity::query()
-            ->with('currentStep')
             ->where('company_id', $companyId)
+            ->with('currentStep')
             ->findOrFail($id);
 
         $userId = (int) $request->user()->id;
         $isOwner = (int) $opp->owner_user_id === $userId;
+        $assigneeId = (int) ($opp->assigned_to_user_id ?? $opp->owner_user_id);
+        $isReferredAway = $assigneeId > 0 && $assigneeId !== (int) $opp->owner_user_id;
+
+        // وقتی فرصت ارجاع شده، مالک قفل است تا بازگشت
+        if ($isOwner && $isReferredAway) {
+            return response()->json([
+                'message' => 'فرصت در ارجاع است. تا بازگشت به شما، ثبت فعالیت برای مالک مجاز نیست.',
+            ], 403);
+        }
+
         if (! $isOwner) {
             $stepId = $data['step_id'] ?? $opp->currentStep?->id;
             $step = $stepId
@@ -251,7 +265,19 @@ class OpportunityController extends Controller
         ]);
 
         $opp = Opportunity::query()->where('company_id', $companyId)->findOrFail($id);
-        $opp = $this->service->assign($opp, $request->user()->id, $data);
+        $userId = (int) $request->user()->id;
+        if ((int) $opp->owner_user_id !== $userId) {
+            return response()->json([
+                'message' => 'فقط مالک فرصت می‌تواند ارجاع بدهد.',
+            ], 403);
+        }
+        $assigneeId = (int) ($opp->assigned_to_user_id ?? $opp->owner_user_id);
+        if ($assigneeId !== (int) $opp->owner_user_id) {
+            return response()->json([
+                'message' => 'فرصت هم‌اکنون در ارجاع است. تا بازگشت به مالک، ارجاع مجدد مجاز نیست.',
+            ], 403);
+        }
+        $opp = $this->service->assign($opp, $userId, $data);
 
         return response()->json(['data' => $this->detail($opp->load([
             'stage', 'owner:id,name', 'assignee:id,name',
@@ -269,38 +295,28 @@ class OpportunityController extends Controller
             ->where('company_id', $companyId)
             ->where('is_active', true)
             ->orderBy('sort_order')
-            ->get(['id', 'name', 'code', 'sort_order', 'is_won', 'is_lost']);
+            ->get(['id', 'name', 'code', 'sort_order']);
 
         return response()->json(['data' => $stages]);
     }
 
     private function listItem(Opportunity $o): array
     {
-        $products = is_array($o->products) ? $o->products : [];
-        if (empty($products) && $o->product_name) {
-            $products = [$o->product_name];
-        }
-
         return [
             'id' => $o->id,
             'code' => $o->code,
             'organization_name' => $o->organization_name,
-            'product_name' => $o->product_name,
-            'products' => $products,
-            'contact_name' => $o->contact_name,
+            'title' => $o->title,
             'status' => $o->status,
-            'next_step' => $o->next_step,
-            'next_step_due_on' => $o->next_step_due_on?->format('Y-m-d'),
+            'priority' => $o->priority,
             'stage' => $o->stage ? ['id' => $o->stage->id, 'name' => $o->stage->name, 'code' => $o->stage->code] : null,
             'owner' => $o->owner ? ['id' => $o->owner->id, 'name' => $o->owner->name] : null,
             'assignee' => $o->assignee ? ['id' => $o->assignee->id, 'name' => $o->assignee->name] : null,
-            'current_step' => $o->currentStep ? [
+            'current_step' => $o->relationLoaded('currentStep') && $o->currentStep ? [
                 'id' => $o->currentStep->id,
                 'title' => $o->currentStep->title,
-                'due_on' => $o->currentStep->due_on?->format('Y-m-d'),
-                'status' => $o->currentStep->status,
-                'closed_at' => $o->currentStep->closed_at?->format('Y-m-d H:i:s'),
-                'assignee' => $o->currentStep->relationLoaded('assignee') && $o->currentStep->assignee ? [
+                'due_on' => $o->currentStep->due_on?->toDateString(),
+                'assignee' => $o->relationLoaded('currentStep') && $o->currentStep->assignee ? [
                     'id' => $o->currentStep->assignee->id,
                     'name' => $o->currentStep->assignee->name,
                 ] : null,
@@ -310,52 +326,44 @@ class OpportunityController extends Controller
 
     private function detail(Opportunity $o): array
     {
-        return array_merge($this->listItem($o), [
-            'contact_role' => $o->contact_role,
-            'contact_mobile' => $o->contact_mobile,
-            'contact_phone' => $o->contact_phone,
-            'contact_email' => $o->contact_email,
-            'address' => $o->address,
-            'application_need' => $o->application_need,
-            'tirage' => $o->tirage,
-            'budget_band' => $o->budget_band,
-            'opening_note' => $o->opening_note,
-            'industry' => $o->industry,
-            'industry_note' => $o->industry_note,
-            'customer_value_focus' => $o->customer_value_focus,
-            'main_objection' => $o->main_objection,
-            'lost_reason' => $o->lost_reason,
-            'result_note' => $o->result_note,
-            'steps' => $o->steps?->map(fn ($s) => [
+        return [
+            'id' => $o->id,
+            'code' => $o->code,
+            'organization_name' => $o->organization_name,
+            'title' => $o->title,
+            'need_summary' => $o->need_summary,
+            'status' => $o->status,
+            'priority' => $o->priority,
+            'stage' => $o->stage ? ['id' => $o->stage->id, 'name' => $o->stage->name, 'code' => $o->stage->code] : null,
+            'owner' => $o->owner ? ['id' => $o->owner->id, 'name' => $o->owner->name] : null,
+            'assignee' => $o->assignee ? ['id' => $o->assignee->id, 'name' => $o->assignee->name] : null,
+            'steps' => ($o->steps ?? collect())->map(fn ($s) => [
                 'id' => $s->id,
                 'title' => $s->title,
-                'due_on' => $s->due_on?->format('Y-m-d'),
-                'closed_at' => $s->closed_at?->format('Y-m-d H:i:s'),
                 'status' => $s->status,
-                'result' => $s->result,
                 'is_current' => (bool) $s->is_current,
+                'due_on' => $s->due_on?->toDateString(),
+                'closed_at' => $s->closed_at?->toIso8601String(),
+                'result' => $s->result,
                 'assignee' => $s->assignee ? ['id' => $s->assignee->id, 'name' => $s->assignee->name] : null,
-            ])->values() ?? [],
-            'activities' => $o->activities?->map(fn ($a) => [
+            ])->values(),
+            'activities' => ($o->activities ?? collect())->map(fn ($a) => [
                 'id' => $a->id,
-                'step_id' => $a->step_id,
                 'type' => $a->type,
                 'subject' => $a->subject,
                 'body' => $a->body,
-                'happened_at' => $a->happened_at?->format('Y-m-d H:i:s'),
-                'created_at' => $a->created_at?->format('Y-m-d H:i:s'),
-            ])->values() ?? [],
-            'referrals' => $o->referrals?->map(fn ($r) => [
+                'result' => $a->result,
+                'step_id' => $a->step_id,
+                'happened_at' => $a->happened_at?->toIso8601String(),
+                'created_at' => $a->created_at?->toIso8601String(),
+            ])->values(),
+            'referrals' => ($o->referrals ?? collect())->map(fn ($r) => [
                 'id' => $r->id,
-                'action' => $r->action,
-                'step_title' => $r->step_title,
-                'step_due_on' => $r->step_due_on?->format('Y-m-d'),
-                'priority' => $r->priority,
                 'note' => $r->note,
-                'created_at' => $r->created_at?->format('Y-m-d H:i:s'),
+                'created_at' => $r->created_at?->toIso8601String(),
                 'from_user' => $r->fromUser ? ['id' => $r->fromUser->id, 'name' => $r->fromUser->name] : null,
                 'to_user' => $r->toUser ? ['id' => $r->toUser->id, 'name' => $r->toUser->name] : null,
-            ])->values() ?? [],
-        ]);
+            ])->values(),
+        ];
     }
 }
